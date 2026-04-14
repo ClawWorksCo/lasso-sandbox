@@ -1,0 +1,38 @@
+# Team OpenCode Sandbox Profile
+# ==============================
+#
+# Full-access OpenCode sandbox with Docker-from-Docker, session persistence,
+# and team tool access. Designed for development teams running OpenCode agents
+# that need broad capabilities while maintaining safety guardrails.
+#
+# Usage:
+#   lasso up --profile team-opencode --dir . --pass-env GITHUB_TOKEN --resume
+#
+# Features:
+#   - Docker-from-Docker: agents can build and run containers
+#   - Session persistence: agent state survives restarts via named volume
+#   - Full network access: no domain restrictions (blocked ports still apply)
+#   - Blacklist command mode: everything allowed except destructive system commands
+#   - 8 GB memory limit with 256 PIDs for heavy workloads
+
+name = "team-opencode"
+description = "Full-access OpenCode sandbox with Docker-from-Docker, session persistence, and team tool access"
+docker_from_docker = true
+
+[commands]
+mode = "blacklist"
+blacklist = ["rm -rf /", "dd", "mkfs"]
+
+[network]
+mode = "full"
+blocked_ports = []
+
+[filesystem]
+working_dir = "."
+writable_paths = ["/workspace", "/home/agent/.local", "/tmp"]
+session_volume = "opencode-agent-data"
+session_volume_target = "/home/agent/.local"
+
+[resources]
+max_memory_mb = 8192
+max_pids = 256

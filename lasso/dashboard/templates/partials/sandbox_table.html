@@ -1,0 +1,108 @@
+{% if sandboxes %}
+<div class="table-wrapper">
+    <table class="data-table" role="table" aria-label="Sandbox list">
+        <thead>
+            <tr>
+                <th scope="col">ID</th>
+                <th scope="col">Name</th>
+                <th scope="col">State</th>
+                <th scope="col">Working Dir</th>
+                <th scope="col">Commands</th>
+                <th scope="col">Network</th>
+                <th scope="col" class="table-cell-center">Execs</th>
+                <th scope="col" class="table-cell-center">Blocked</th>
+                <th scope="col">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for sb in sandboxes %}
+            <tr>
+                <td>
+                    <a href="{{ url_for('dashboard.sandbox_detail', sandbox_id=sb.id) }}"
+                       class="table-cell-mono" style="font-weight: 600;">
+                        {{ sb.id[:8] }}
+                    </a>
+                    <button class="copy-btn" onclick="copyToClipboard('{{ sb.id }}', this)" title="Copy full sandbox ID" aria-label="Copy sandbox ID">Copy</button>
+                </td>
+                <td>
+                    <strong style="color: var(--text-primary);">{{ sb.name }}</strong>
+                </td>
+                <td>
+                    <span class="badge badge-{{ sb.state }}">
+                        <span class="badge-dot" aria-hidden="true"></span>
+                        {{ sb.state }}
+                    </span>
+                </td>
+                <td class="table-cell-mono table-cell-truncate" title="{{ sb.working_dir }}">
+                    {{ sb.working_dir }}
+                </td>
+                <td>{{ sb.command_mode }}</td>
+                <td>
+                    <span class="badge badge-net-{{ sb.network_mode }}">
+                        {% if sb.network_mode == 'none' %}&#128274;{% elif sb.network_mode == 'restricted' %}&#9888;{% else %}&#127760;{% endif %}
+                        {{ sb.network_mode | upper }}
+                    </span>
+                </td>
+                <td class="table-cell-center">
+                    <span style="font-variant-numeric: tabular-nums;">{{ sb.exec_count }}</span>
+                </td>
+                <td class="table-cell-center">
+                    {% if sb.blocked_count > 0 %}
+                    <span class="text-error font-bold">{{ sb.blocked_count }}</span>
+                    {% else %}
+                    <span class="text-muted">0</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <div class="table-cell-actions">
+                        <a href="{{ url_for('dashboard.sandbox_detail', sandbox_id=sb.id) }}" class="btn btn-ghost btn-sm">
+                            Detail
+                        </a>
+                        {% if sb.state == 'running' %}
+                        <form method="post"
+                              action="{{ url_for('dashboard.sandbox_stop', sandbox_id=sb.id) }}"
+                              style="margin: 0; display: inline;"
+                              onsubmit="return confirmStop(this, '{{ sb.name }}');">
+                            {{ csrf_token() }}
+                            <button type="submit" class="btn btn-danger btn-sm">
+                                Stop
+                            </button>
+                        </form>
+                        {% endif %}
+                        <a href="{{ url_for('dashboard.audit_log', sandbox_id=sb.id) }}" class="btn btn-ghost btn-sm">
+                            Audit
+                        </a>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="card">
+    <div class="card-body">
+        <div class="empty-state">
+            <div class="empty-state-icon" aria-hidden="true">&#9632;</div>
+            <h3>No sandboxes yet</h3>
+            <p style="margin-bottom: var(--sp-4);">Get started by creating your first sandbox environment.</p>
+            <div class="getting-started-card">
+                <ol class="getting-started-steps">
+                    <li class="getting-started-step">
+                        <span class="step-number">1</span>
+                        <span><strong style="color: var(--text-primary);">Choose a profile</strong> &mdash; Select a security profile from the dropdown above (e.g. <code>evaluation</code>, <code>daily</code>)</span>
+                    </li>
+                    <li class="getting-started-step">
+                        <span class="step-number">2</span>
+                        <span><strong style="color: var(--text-primary);">Set working directory</strong> &mdash; Enter the path to your project files</span>
+                    </li>
+                    <li class="getting-started-step">
+                        <span class="step-number">3</span>
+                        <span><strong style="color: var(--text-primary);">Create sandbox</strong> &mdash; Click Create or use the CLI: <code>lasso create evaluation</code></span>
+                    </li>
+                </ol>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}

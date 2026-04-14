@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+audit/
+.audit_key
+*.log
+.lasso/
+*.toml.bak
+.env
+.hypothesis/

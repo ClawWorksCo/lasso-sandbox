@@ -1,0 +1,201 @@
+# LASSO CI/CD Pipeline for GitLab CI
+#
+# This pipeline validates LASSO with unit tests, runs security scans,
+# and performs Docker-based integration tests.
+#
+# Copy this file to .gitlab-ci.yml in your repository root.
+
+# ---------------------------------------------------------------------------
+# Global configuration
+# ---------------------------------------------------------------------------
+
+stages:
+  - test
+  - security-scan
+  - integration
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  LASSO_LOG_LEVEL: info
+  LASSO_AUDIT_DIR: ./audit
+
+# Cache pip packages across all jobs.
+cache:
+  key: "${CI_COMMIT_REF_SLUG}-pip"
+  paths:
+    - .cache/pip/
+    - .venv/
+
+# Base template for Python jobs.
+.python-base:
+  image: python:3.12-slim
+  before_script:
+    - python -m venv .venv
+    - source .venv/bin/activate
+    - pip install --upgrade pip
+    - pip install -e ".[dev]"
+
+# ---------------------------------------------------------------------------
+# Stage: test
+# ---------------------------------------------------------------------------
+
+# Run unit tests across multiple Python versions.
+unit-tests:
+  extends: .python-base
+  stage: test
+  parallel:
+    matrix:
+      - PYTHON_IMAGE:
+          - python:3.10-slim
+          - python:3.11-slim
+          - python:3.12-slim
+  image: $PYTHON_IMAGE
+  script:
+    - python -m pytest tests/ -m "not integration" -q
+        --tb=short
+        --junitxml=test-results/unit.xml
+  artifacts:
+    when: always
+    reports:
+      junit: test-results/unit.xml
+    paths:
+      - test-results/
+    expire_in: 30 days
+
+# ---------------------------------------------------------------------------
+# Stage: security-scan
+# ---------------------------------------------------------------------------
+
+# Verify LASSO system configuration and audit log integrity.
+security-check:
+  extends: .python-base
+  stage: security-scan
+  needs: ["unit-tests"]
+  script:
+    # Verify LASSO installation and configuration.
+    - lasso check
+
+    # Initialize a project and create a test audit log.
+    - lasso init --profile minimal
+
+    # If audit logs exist from a previous pipeline stage or artifact,
+    # verify their HMAC chain integrity.
+    - |
+      if [ -f ./audit/log.jsonl ]; then
+        echo "Verifying audit log integrity..."
+        lasso audit verify ./audit/log.jsonl
+        echo "Audit log verification passed."
+      else
+        echo "No audit log found — skipping verification."
+      fi
+
+    # Check installed dependencies for known vulnerabilities.
+    - pip install pip-audit
+    - pip-audit --strict --desc || true
+  artifacts:
+    when: always
+    paths:
+      - audit/
+    expire_in: 90 days
+
+# Scan container image for vulnerabilities (if you build a LASSO image).
+container-scan:
+  stage: security-scan
+  image: aquasec/trivy:latest
+  needs: ["unit-tests"]
+  script:
+    - trivy fs --exit-code 1 --severity HIGH,CRITICAL .
+  allow_failure: true
+
+# ---------------------------------------------------------------------------
+# Stage: integration
+# ---------------------------------------------------------------------------
+
+# Integration tests require Docker-in-Docker.
+integration-tests:
+  extends: .python-base
+  stage: integration
+  needs: ["security-check"]
+  image: python:3.12
+  services:
+    - name: docker:27-dind
+      alias: docker
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+  before_script:
+    # Install Docker CLI inside the Python image.
+    - apt-get update && apt-get install -y docker.io
+    - python -m venv .venv
+    - source .venv/bin/activate
+    - pip install --upgrade pip
+    - pip install -e ".[dev]"
+  script:
+    # Verify Docker connectivity.
+    - docker info
+
+    # Run LASSO system check with Docker available.
+    - lasso check
+
+    # Run all tests including integration tests.
+    - python -m pytest tests/ -q
+        --tb=short
+        --junitxml=test-results/integration.xml
+
+  artifacts:
+    when: always
+    reports:
+      junit: test-results/integration.xml
+    paths:
+      - test-results/
+      - audit/
+    expire_in: 30 days
+
+# ---------------------------------------------------------------------------
+# Example: Sandboxed agent execution as a CI job
+#
+# Use this as a template for running AI agents inside LASSO sandboxes
+# during your pipeline. Audit logs are collected as artifacts for
+# compliance review.
+# ---------------------------------------------------------------------------
+
+sandboxed-agent:
+  extends: .python-base
+  stage: integration
+  needs: ["security-check"]
+  services:
+    - name: docker:27-dind
+      alias: docker
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+  before_script:
+    - apt-get update && apt-get install -y docker.io
+    - python -m venv .venv
+    - source .venv/bin/activate
+    - pip install --upgrade pip
+    - pip install -e .
+  script:
+    # Initialize LASSO for this project.
+    - lasso init --profile bank-analysis
+
+    # Create a sandbox and capture its ID.
+    - SANDBOX_ID=$(lasso create bank-analysis --dir . --quiet)
+
+    # Run the agent's workload inside the sandbox.
+    - lasso exec "$SANDBOX_ID" -- python3 analyze.py
+
+    # Verify audit log integrity as a quality gate.
+    - lasso audit verify ./audit/log.jsonl
+
+    # Export audit evidence for compliance.
+    - lasso audit export ./audit/log.jsonl --format csv --output audit-report.csv
+  after_script:
+    - source .venv/bin/activate
+    - lasso stop all || true
+  artifacts:
+    when: always
+    paths:
+      - audit/
+      - audit-report.csv
+    expire_in: 365 days  # Retain for DORA compliance

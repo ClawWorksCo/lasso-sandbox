@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "myteam-lasso-config"
+version = "1.0.0"
+description = "Team LASSO configuration — profiles, templates, and onboarding scripts"
+requires-python = ">=3.10"
+
+dependencies = [
+    "lasso-sandbox>=1.6.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+]

@@ -1,0 +1,44 @@
+{% if error is defined and error %}
+<div class="exec-result">
+    <pre class="exec-stderr">{{ error }}</pre>
+</div>
+{% elif result is defined %}
+<div class="exec-result">
+    <div class="exec-cmd-line">
+        <div>
+            <span class="exec-prompt-symbol" aria-hidden="true" style="font-size: var(--text-sm);">$ </span>
+            <span class="exec-cmd">{{ result.command }}</span>
+            {% if result.blocked %}
+            <span class="exec-blocked-msg"> [BLOCKED]</span>
+            {% endif %}
+        </div>
+        {% if not result.blocked %}
+        <span class="exec-meta">
+            <span class="{% if result.exit_code == 0 %}exec-exit-ok{% else %}exec-exit-fail{% endif %}">
+                exit: {{ result.exit_code }}
+            </span>
+            {% if result.duration_ms %}
+            <span class="text-muted"> | {{ result.duration_ms }}ms</span>
+            {% endif %}
+        </span>
+        {% endif %}
+    </div>
+
+    {% if result.blocked %}
+    <div class="exec-blocked-banner">
+        <span aria-hidden="true">&#9888;</span>
+        <span>BLOCKED: {{ result.block_reason }}</span>
+    </div>
+    {% else %}
+        {% if result.stdout %}
+        <pre class="exec-stdout">{{ result.stdout }}</pre>
+        {% endif %}
+        {% if result.stderr %}
+        <pre class="exec-stderr">{{ result.stderr }}</pre>
+        {% endif %}
+        {% if not result.stdout and not result.stderr and result.exit_code == 0 %}
+        <pre class="exec-no-output">(no output)</pre>
+        {% endif %}
+    {% endif %}
+</div>
+{% endif %}

@@ -1,0 +1,515 @@
+{% extends "base.html" %}
+{% block title %}LASSO — Edit Profile: {{ profile.name }}{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item">
+    <a href="{{ url_for('dashboard.profiles_list') }}">Sandbox Rules</a>
+</li>
+<li><span class="breadcrumb-separator" aria-hidden="true">/</span></li>
+<li class="breadcrumb-item">
+    <a href="{{ url_for('dashboard.profile_detail', name=profile.name) }}">{{ profile.name }}</a>
+</li>
+<li><span class="breadcrumb-separator" aria-hidden="true">/</span></li>
+<li class="breadcrumb-item">
+    <span class="breadcrumb-current">Edit</span>
+</li>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">{% if source == 'builtin' %}Duplicate Profile: {{ profile.name }}{% else %}Edit Profile: {{ profile.name }}{% endif %}</h1>
+    <p class="page-subtitle">{% if source == 'builtin' %}Create a custom profile based on the built-in "{{ profile.name }}" profile{% else %}Customize sandbox security settings for this profile{% endif %}</p>
+</div>
+
+{% if error %}
+<div class="alert alert-error mb-6" role="alert">
+    <strong>Error:</strong> {{ error }}
+</div>
+{% endif %}
+
+<form method="POST"
+      action="{% if source == 'builtin' %}{{ url_for('dashboard.profile_create') }}{% else %}{{ url_for('dashboard.profile_save', name=profile.name) }}{% endif %}"
+      id="profile-form">
+    {{ csrf_token() }}
+
+    <!-- Section 1: Basic Info -->
+    <div class="card mb-6">
+        <div class="card-header">
+            <h3>Basic Information</h3>
+        </div>
+        <div class="card-body">
+            <p class="text-secondary text-sm mb-4">General settings that identify this profile and define its inheritance.</p>
+
+            <div class="form-grid">
+                <div class="form-group">
+                    <label class="form-label" for="name">Profile Name</label>
+                    <input type="text" id="name" name="name" class="form-input"
+                           value="{% if source == 'builtin' %}{{ profile.name }}-custom{% else %}{{ profile.name }}{% endif %}"
+                           pattern="[a-zA-Z0-9_-]+"
+                           title="Letters, numbers, hyphens, and underscores only"
+                           required>
+                    {% if source == 'builtin' %}
+                    <p class="form-hint">This will create a new custom profile based on "{{ profile.name }}". Choose a unique name.</p>
+                    {% endif %}
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="extends">Base Profile</label>
+                    <select id="extends" name="extends" class="form-input">
+                        <option value="" {% if not profile.extends %}selected{% endif %}>None (standalone)</option>
+                        <option value="standard" {% if profile.extends == 'standard' %}selected{% endif %}>Standard -- dev tools, restricted network</option>
+                        <option value="open" {% if profile.extends == 'open' %}selected{% endif %}>Open -- full network, broad access</option>
+                        <option value="offline" {% if profile.extends == 'offline' %}selected{% endif %}>Offline -- data science, full audit trail</option>
+                        <option value="strict" {% if profile.extends == 'strict' %}selected{% endif %}>Strict -- compliance-ready, PII protection</option>
+                        <option value="evaluation" {% if profile.extends == 'evaluation' %}selected{% endif %}>Evaluation -- tight restrictions, no network</option>
+                    </select>
+                    <p class="form-hint">Inherit settings from a base profile. Your changes override the base.</p>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="description">Description</label>
+                <textarea id="description" name="description" class="form-input" rows="3"
+                          placeholder="Describe what this profile is for and who should use it...">{{ profile.description }}</textarea>
+                <p class="form-hint">Help your team understand when to use this profile.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 2: Allowed Commands -->
+    <div class="card mb-6">
+        <div class="card-header">
+            <h3>Allowed Commands</h3>
+        </div>
+        <div class="card-body">
+            <p class="text-secondary text-sm mb-4">Control which shell commands the AI agent can execute. An allowed list is safer -- only the commands you check will be permitted.</p>
+
+            <div class="form-group mb-6">
+                <label class="form-label">Command Filter Mode</label>
+                <div class="radio-group">
+                    <label class="radio-option">
+                        <input type="radio" name="cmd_mode" value="whitelist"
+                               {% if profile_data.commands.mode == 'whitelist' %}checked{% endif %}>
+                        <span class="radio-label">
+                            <strong>Allowed list</strong>
+                            <span class="text-secondary text-sm">Only checked commands can run. Everything else is blocked.</span>
+                        </span>
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" name="cmd_mode" value="blacklist"
+                               {% if profile_data.commands.mode == 'blacklist' %}checked{% endif %}>
+                        <span class="radio-label">
+                            <strong>Blocked list</strong>
+                            <span class="text-secondary text-sm">All commands can run except the ones you check. Less secure.</span>
+                        </span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-group mb-4">
+                <label class="form-label">Quick Presets</label>
+                <div class="cmd-presets" style="display: flex; gap: var(--sp-2); margin-bottom: var(--sp-4);">
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="setPreset('readonly')">Read Only</button>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="setPreset('development')">Development</button>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="setPreset('full')">Full Access</button>
+                </div>
+
+                <label class="form-label">Common Commands</label>
+                <p class="form-hint mb-3">{% if profile_data.commands.mode == 'blacklist' %}Check commands to <strong>block</strong>. Everything else is allowed.{% else %}Check commands to <strong>allow</strong>. Everything else is blocked.{% endif %}</p>
+
+                <div class="cmd-category">
+                    <h4 class="cmd-category-title">Core -- file viewing and search</h4>
+                    <div class="checkbox-grid">
+                        {% for cmd in ['ls', 'cat', 'head', 'tail', 'grep', 'find', 'wc', 'sort', 'diff', 'echo', 'test'] %}
+                        <label class="checkbox-option">
+                            <input type="checkbox" name="commands" value="{{ cmd }}"
+                                   {% if profile_data.commands.mode == 'blacklist' %}{% if cmd in profile_data.commands.blacklist %}checked{% endif %}{% else %}{% if cmd in profile_data.commands.whitelist %}checked{% endif %}{% endif %}>
+                            <code>{{ cmd }}</code>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="cmd-category">
+                    <h4 class="cmd-category-title">Development -- build and version control</h4>
+                    <div class="checkbox-grid">
+                        {% for cmd in ['python3', 'pip', 'git', 'node', 'npm', 'make', 'cargo', 'go'] %}
+                        <label class="checkbox-option">
+                            <input type="checkbox" name="commands" value="{{ cmd }}"
+                                   {% if profile_data.commands.mode == 'blacklist' %}{% if cmd in profile_data.commands.blacklist %}checked{% endif %}{% else %}{% if cmd in profile_data.commands.whitelist %}checked{% endif %}{% endif %}>
+                            <code>{{ cmd }}</code>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="cmd-category">
+                    <h4 class="cmd-category-title">Network -- download and transfer
+                        <span class="badge-inline badge-warning-inline">use with caution</span>
+                    </h4>
+                    <div class="checkbox-grid">
+                        {% for cmd in ['curl', 'wget'] %}
+                        <label class="checkbox-option">
+                            <input type="checkbox" name="commands" value="{{ cmd }}"
+                                   {% if profile_data.commands.mode == 'blacklist' %}{% if cmd in profile_data.commands.blacklist %}checked{% endif %}{% else %}{% if cmd in profile_data.commands.whitelist %}checked{% endif %}{% endif %}>
+                            <code>{{ cmd }}</code>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="cmd-category">
+                    <h4 class="cmd-category-title">File operations</h4>
+                    <div class="checkbox-grid">
+                        {% for cmd in ['mkdir', 'cp', 'mv', 'touch', 'tar', 'zip', 'unzip'] %}
+                        <label class="checkbox-option">
+                            <input type="checkbox" name="commands" value="{{ cmd }}"
+                                   {% if profile_data.commands.mode == 'blacklist' %}{% if cmd in profile_data.commands.blacklist %}checked{% endif %}{% else %}{% if cmd in profile_data.commands.whitelist %}checked{% endif %}{% endif %}>
+                            <code>{{ cmd }}</code>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="max_execution_seconds">Max execution time (seconds)</label>
+                <input type="number" id="max_execution_seconds" name="max_execution_seconds" class="form-input"
+                       value="{{ profile_data.commands.max_execution_seconds }}"
+                       min="1" max="3600">
+                <p class="form-hint">Kill commands that run longer than this.</p>
+            </div>
+
+            <details class="collapsible" style="margin-top: var(--sp-4);">
+                <summary>Advanced</summary>
+                <div class="collapsible-content" style="padding-top: var(--sp-3);">
+                    <div class="form-group mb-4">
+                        <label class="form-label" for="extra_commands">Additional Commands</label>
+                        <input type="text" id="extra_commands" name="extra_commands" class="form-input"
+                               placeholder="e.g. rustc, cmake, gcc (comma-separated)"
+                               value="{{ extra_commands_str }}">
+                        <p class="form-hint">Add commands not listed above, separated by commas.</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="checkbox-option">
+                            <input type="checkbox" name="allow_shell_operators" value="1"
+                                   {% if profile_data.commands.allow_shell_operators %}checked{% endif %}>
+                            <span>
+                                <strong>Allow shell operators</strong>
+                                <span class="text-secondary text-sm"> -- pipes (|), redirects (>), and subshells ($(...))</span>
+                            </span>
+                        </label>
+                    </div>
+                </div>
+            </details>
+        </div>
+    </div>
+
+    <!-- Section 3: Network Access -->
+    <div class="card mb-6">
+        <div class="card-header">
+            <h3>Network Access</h3>
+        </div>
+        <div class="card-body">
+            <p class="text-secondary text-sm mb-4">Control whether the AI agent can access the internet and which sites it can reach. Offline is the safest option.</p>
+
+            <div class="form-group mb-6">
+                <label class="form-label">Network Mode</label>
+                <div class="radio-group">
+                    <label class="radio-option">
+                        <input type="radio" name="net_mode" value="none"
+                               {% if profile_data.network.mode == 'none' %}checked{% endif %}
+                               onchange="toggleNetworkOptions()">
+                        <span class="radio-label">
+                            <strong>Offline</strong>
+                            <span class="text-success text-sm">No internet access at all. Safest option -- prevents data leaks.</span>
+                        </span>
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" name="net_mode" value="restricted"
+                               {% if profile_data.network.mode == 'restricted' %}checked{% endif %}
+                               onchange="toggleNetworkOptions()">
+                        <span class="radio-label">
+                            <strong>Limited</strong>
+                            <span class="text-warning text-sm">Only specific domains you approve. Good for package managers.</span>
+                        </span>
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" name="net_mode" value="full"
+                               {% if profile_data.network.mode == 'full' %}checked{% endif %}
+                               onchange="toggleNetworkOptions()">
+                        <span class="radio-label">
+                            <strong>Full</strong>
+                            <span class="text-error text-sm">Unrestricted internet access. Not recommended for production.</span>
+                        </span>
+                    </label>
+                </div>
+            </div>
+
+            <div id="network-options" {% if profile_data.network.mode == 'none' %}style="display:none"{% endif %}>
+                <div class="form-group mb-4">
+                    <label class="form-label">Allowed Domains</label>
+                    <p class="form-hint mb-2">The agent can only connect to these domains. Click a domain to remove it.</p>
+                    <div class="tag-input-container" id="domain-container">
+                        <div class="tag-list" id="domain-tags">
+                            {% for domain in profile_data.network.allowed_domains %}
+                            <span class="editable-tag" onclick="removeTag(this)">
+                                {{ domain }} <span class="tag-remove" aria-label="Remove {{ domain }}">&times;</span>
+                            </span>
+                            {% endfor %}
+                        </div>
+                        <input type="text" id="domain-input" class="tag-text-input"
+                               placeholder="Type a domain and press Enter (e.g. pypi.org)"
+                               onkeydown="handleTagInput(event, 'domain')">
+                    </div>
+                    <input type="hidden" name="allowed_domains" id="allowed-domains-hidden"
+                           value="{{ profile_data.network.allowed_domains | join(',') }}">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Block Database Ports</label>
+                    <p class="form-hint mb-2">Common database ports are blocked by default to prevent accidental data access.</p>
+                    <div class="checkbox-grid">
+                        {% set db_ports = [
+                            (3306, 'MySQL'),
+                            (5432, 'PostgreSQL'),
+                            (27017, 'MongoDB'),
+                            (6379, 'Redis'),
+                            (1433, 'SQL Server'),
+                            (1521, 'Oracle'),
+                            (9042, 'Cassandra'),
+                            (5984, 'CouchDB'),
+                        ] %}
+                        {% for port, label in db_ports %}
+                        <label class="checkbox-option">
+                            <input type="checkbox" name="blocked_ports" value="{{ port }}"
+                                   {% if port in profile_data.network.blocked_ports %}checked{% endif %}>
+                            <span>{{ label }} <code>:{{ port }}</code></span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 4: Resource Limits -->
+    <div class="card mb-6">
+        <div class="card-header">
+            <h3>Resource Limits</h3>
+        </div>
+        <div class="card-body">
+            <p class="text-secondary text-sm mb-4">Prevent runaway processes by limiting memory, CPU, and process count. Lower values are safer but may limit the agent's ability to build large projects.</p>
+
+            <div class="form-group mb-4">
+                <label class="form-label">Resource Presets</label>
+                <div class="resource-presets" style="display: flex; flex-direction: column; gap: var(--sp-2);">
+                    <label style="display: flex; align-items: center; gap: var(--sp-2); cursor: pointer;">
+                        <input type="radio" name="resource_preset" value="light" onclick="setResources(1024,25,50)">
+                        <span><strong>Light</strong> (1GB, scripts)</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: var(--sp-2); cursor: pointer;">
+                        <input type="radio" name="resource_preset" value="standard" onclick="setResources(4096,50,200)">
+                        <span><strong>Standard</strong> (4GB, development)</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: var(--sp-2); cursor: pointer;">
+                        <input type="radio" name="resource_preset" value="heavy" onclick="setResources(8192,100,500)">
+                        <span><strong>Heavy</strong> (8GB, data processing)</span>
+                    </label>
+                </div>
+                <p class="form-hint" style="margin-top: var(--sp-2);">Use the sliders below to fine-tune after selecting a preset.</p>
+            </div>
+
+            <div class="form-grid">
+                <div class="form-group">
+                    <label class="form-label" for="max_memory_mb">
+                        Memory Limit: <strong id="memory-value">{{ profile_data.resources.max_memory_mb }}MB</strong>
+                    </label>
+                    <input type="range" id="max_memory_mb" name="max_memory_mb" class="form-range"
+                           min="512" max="16384" step="256"
+                           value="{{ profile_data.resources.max_memory_mb }}"
+                           oninput="document.getElementById('memory-value').textContent = this.value + 'MB'">
+                    <div class="range-labels">
+                        <span>512MB</span>
+                        <span>16GB</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="max_cpu_percent">
+                        CPU Limit: <strong id="cpu-value">{{ profile_data.resources.max_cpu_percent }}%</strong>
+                    </label>
+                    <input type="range" id="max_cpu_percent" name="max_cpu_percent" class="form-range"
+                           min="10" max="100" step="5"
+                           value="{{ profile_data.resources.max_cpu_percent }}"
+                           oninput="document.getElementById('cpu-value').textContent = this.value + '%'">
+                    <div class="range-labels">
+                        <span>10%</span>
+                        <span>100%</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="max_pids">Max Processes</label>
+                    <input type="number" id="max_pids" name="max_pids" class="form-input"
+                           value="{{ profile_data.resources.max_pids }}"
+                           min="1" max="1000">
+                    <p class="form-hint">Maximum number of simultaneous processes the agent can spawn.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 5: Audit Settings -->
+    <div class="card mb-6">
+        <div class="card-header">
+            <h3>Audit Settings</h3>
+        </div>
+        <div class="card-body">
+            <p class="text-secondary text-sm mb-4">Every action inside the sandbox can be recorded so you can review what the AI did. These settings control how detailed that recording is.</p>
+
+            <div class="toggle-grid">
+                <label class="toggle-option">
+                    <span class="toggle-text">
+                        <strong>Enable audit logging</strong>
+                        <span class="text-secondary text-sm">Record all sandbox activity to an audit trail</span>
+                    </span>
+                    <input type="checkbox" name="audit_enabled" value="1"
+                           {% if profile_data.audit.enabled %}checked{% endif %}
+                           class="toggle-input">
+                    <span class="toggle-switch" aria-hidden="true"></span>
+                </label>
+
+                <label class="toggle-option">
+                    <span class="toggle-text">
+                        <strong>Log command output</strong>
+                        <span class="text-secondary text-sm">Save the full output (stdout/stderr) of each command</span>
+                    </span>
+                    <input type="checkbox" name="audit_command_output" value="1"
+                           {% if profile_data.audit.include_command_output %}checked{% endif %}
+                           class="toggle-input">
+                    <span class="toggle-switch" aria-hidden="true"></span>
+                </label>
+
+                <label class="toggle-option">
+                    <span class="toggle-text">
+                        <strong>Log file diffs</strong>
+                        <span class="text-secondary text-sm">Record diffs of every file modification</span>
+                    </span>
+                    <input type="checkbox" name="audit_file_diffs" value="1"
+                           {% if profile_data.audit.include_file_diffs %}checked{% endif %}
+                           class="toggle-input">
+                    <span class="toggle-switch" aria-hidden="true"></span>
+                </label>
+
+                <label class="toggle-option">
+                    <span class="toggle-text">
+                        <strong>Tamper-proof signatures</strong>
+                        <span class="text-secondary text-sm">Cryptographically sign each log entry to detect tampering</span>
+                    </span>
+                    <input type="checkbox" name="audit_sign" value="1" checked disabled
+                           class="toggle-input">
+                    <span class="toggle-switch" aria-hidden="true"></span>
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="form-actions">
+        <a href="{{ url_for('dashboard.profile_detail', name=profile.name) }}" class="btn btn-secondary">Cancel</a>
+        <button type="submit" class="btn btn-primary">Save Profile</button>
+    </div>
+</form>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+var PRESETS = {
+    readonly: ['ls', 'cat', 'head', 'tail', 'grep', 'find', 'wc', 'sort', 'diff', 'echo', 'test'],
+    development: ['ls', 'cat', 'head', 'tail', 'grep', 'find', 'wc', 'sort', 'diff', 'echo', 'test',
+                   'python3', 'pip', 'git', 'node', 'npm', 'make', 'cargo', 'go',
+                   'curl', 'wget',
+                   'mkdir', 'cp', 'mv', 'touch', 'tar', 'zip', 'unzip'],
+    full: ['ls', 'cat', 'head', 'tail', 'grep', 'find', 'wc', 'sort', 'diff', 'echo', 'test',
+            'python3', 'pip', 'git', 'node', 'npm', 'make', 'cargo', 'go',
+            'curl', 'wget',
+            'mkdir', 'cp', 'mv', 'touch', 'tar', 'zip', 'unzip']
+};
+
+function setPreset(name) {
+    var allowed = PRESETS[name] || [];
+    var checkboxes = document.querySelectorAll('input[name="commands"]');
+    checkboxes.forEach(function(cb) {
+        cb.checked = allowed.indexOf(cb.value) !== -1;
+    });
+}
+
+function setResources(memory, cpu, pids) {
+    var memSlider = document.getElementById('max_memory_mb');
+    var cpuSlider = document.getElementById('max_cpu_percent');
+    var pidsInput = document.getElementById('max_pids');
+    memSlider.value = memory;
+    cpuSlider.value = cpu;
+    pidsInput.value = pids;
+    document.getElementById('memory-value').textContent = memory + 'MB';
+    document.getElementById('cpu-value').textContent = cpu + '%';
+}
+
+function toggleNetworkOptions() {
+    var mode = document.querySelector('input[name="net_mode"]:checked').value;
+    var opts = document.getElementById('network-options');
+    opts.style.display = (mode === 'none') ? 'none' : '';
+}
+
+function handleTagInput(event, type) {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    var input = event.target;
+    var value = input.value.trim();
+    if (!value) return;
+
+    var tagsContainer = document.getElementById(type + '-tags');
+    var hiddenInput = document.getElementById('allowed-domains-hidden');
+
+    // Create tag element
+    var tag = document.createElement('span');
+    tag.className = 'editable-tag';
+    tag.onclick = function() { removeTag(this); };
+    tag.textContent = value + ' ';
+    var removeSpan = document.createElement('span');
+    removeSpan.className = 'tag-remove';
+    removeSpan.setAttribute('aria-label', 'Remove ' + value);
+    removeSpan.textContent = '\u00d7';
+    tag.appendChild(removeSpan);
+    tagsContainer.appendChild(tag);
+
+    // Update hidden input
+    updateHiddenDomains();
+    input.value = '';
+}
+
+function removeTag(el) {
+    el.remove();
+    updateHiddenDomains();
+}
+
+function updateHiddenDomains() {
+    var tags = document.querySelectorAll('#domain-tags .editable-tag');
+    var domains = [];
+    tags.forEach(function(tag) {
+        // Get text content minus the X button
+        var text = tag.childNodes[0].textContent.trim();
+        if (text) domains.push(text);
+    });
+    document.getElementById('allowed-domains-hidden').value = domains.join(',');
+}
+
+// Sync hidden input on form submit
+document.getElementById('profile-form').addEventListener('submit', function() {
+    updateHiddenDomains();
+});
+</script>
+{% endblock %}

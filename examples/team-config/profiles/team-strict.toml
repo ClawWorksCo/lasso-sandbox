@@ -1,0 +1,57 @@
+# Team strict profile — extends the built-in "strict" profile
+# with team-specific repository access and webhook configuration.
+#
+# Usage: lasso create team-strict --dir .
+
+extends = "strict"
+
+name = "team-strict"
+description = "Strict compliance sandbox — no network, full audit, read-only git"
+tags = ["team", "compliance", "dora"]
+mode = "observe"
+
+# Override: specify which repos the agent can access
+[git_access]
+allowed_repos = [
+    "myorg/risk-model",
+    "myorg/data-pipeline",
+    "myorg/compliance-checks",
+]
+access_mode = "read"
+block_git_history_content = true
+
+# Override: add blocked args for team conventions
+[commands.blocked_args]
+git = ["push", "push --force", "remote add", "remote set-url", "checkout -b"]
+pip = ["install --user", "install -e", "install --upgrade"]
+
+# Override: increase resources for large data workloads
+[resources]
+max_memory_mb = 16384
+max_cpu_percent = 75
+max_pids = 200
+max_open_files = 4096
+max_file_size_mb = 500
+
+# Audit with SIEM integration
+[audit]
+enabled = true
+log_dir = "/var/log/lasso/audit"
+log_format = "jsonl"
+include_timestamps = true
+include_command_output = true
+include_file_diffs = true
+max_log_size_mb = 500
+rotation_count = 30
+sign_entries = true
+signing_key_path = "/etc/lasso/audit-key"
+syslog_address = "udp://siem.example.com:514"
+syslog_facility = "local0"
+
+[[audit.webhooks]]
+enabled = true
+url = "https://siem.example.com/api/v1/lasso-events"
+events = ["violation", "lifecycle", "command"]
+secret = "change-me-to-a-real-hmac-secret"
+timeout_seconds = 5
+retry_count = 3

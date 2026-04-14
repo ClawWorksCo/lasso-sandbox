@@ -1,0 +1,48 @@
+{% if entries %}
+<div class="table-wrapper" style="border: none; border-radius: 0;">
+    <table class="data-table" role="table" aria-label="Recent audit events">
+        <thead>
+            <tr>
+                <th scope="col">Time</th>
+                <th scope="col">Type</th>
+                <th scope="col">Action</th>
+                <th scope="col">Outcome</th>
+                <th scope="col">Sig</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for entry in entries | reverse %}
+            <tr style="{% if entry.get('outcome') == 'blocked' %}background: var(--color-error-bg);{% endif %}">
+                <td class="table-cell-mono" style="white-space: nowrap;">
+                    {{ entry.get('ts', '') | timeago }}
+                </td>
+                <td>
+                    <span class="badge {% if entry.get('type') == 'command' %}badge-created{% elif entry.get('type') == 'lifecycle' %}badge-configuring{% elif entry.get('type') == 'violation' %}badge-error{% else %}badge-stopped{% endif %}">
+                        {{ entry.get('type', '') }}
+                    </span>
+                </td>
+                <td class="table-cell-mono">{{ entry.get('action', '') }}</td>
+                <td>
+                    <span class="outcome-{{ entry.get('outcome', 'success') }} font-semibold">
+                        {{ entry.get('outcome', '') }}
+                    </span>
+                </td>
+                <td>
+                    {% if entry.get('sig') %}
+                    <span class="sig-badge" title="{{ entry.get('sig', '') }}">{{ entry.get('sig', '')[:8] }}</span>
+                    <button class="copy-btn" onclick="copyToClipboard('{{ entry.get('sig', '') }}', this)" title="Copy signature" aria-label="Copy signature">Copy</button>
+                    {% else %}
+                    <span class="sig-badge unsigned">--</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="empty-state-audit">
+    <div class="empty-state-audit-icon" aria-hidden="true">&#9998;</div>
+    <div>No events recorded yet. Execute a command to see activity.</div>
+</div>
+{% endif %}

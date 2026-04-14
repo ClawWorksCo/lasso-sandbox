@@ -1,0 +1,39 @@
+name: Validate LASSO Config
+
+on:
+  push:
+    paths:
+      - "profiles/**"
+      - "lasso-config.toml"
+      - "templates/**"
+  pull_request:
+    paths:
+      - "profiles/**"
+      - "lasso-config.toml"
+      - "templates/**"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install LASSO
+        run: pip install lasso-sandbox>=1.6.3
+
+      - name: Validate team profiles
+        run: |
+          for profile in profiles/*.toml; do
+            echo "Validating $profile..."
+            lasso config validate "$profile"
+          done
+
+      - name: Validate main config
+        run: lasso config validate lasso-config.toml
+
+      - name: Check system requirements
+        run: lasso check --quiet || true

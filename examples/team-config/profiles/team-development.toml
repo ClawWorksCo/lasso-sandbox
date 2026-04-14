@@ -1,0 +1,51 @@
+# Team development profile — extends the built-in "standard" profile
+# with team-specific overrides.
+#
+# Usage: lasso create team-development --dir .
+
+extends = "standard"
+
+name = "team-development"
+description = "Standard development sandbox with team guardrails"
+tags = ["team", "development"]
+mode = "assist"
+
+# Allow additional tools your team uses
+[commands]
+whitelist = [
+    "python3", "pip", "git",
+    "ls", "cat", "head", "tail", "grep", "find",
+    "wc", "sort", "uniq", "diff",
+    "mkdir", "cp", "mv", "touch",
+    "echo", "printf", "test",
+    "node", "npm", "npx",
+    "make", "cargo",
+    "jq",
+]
+allow_shell_operators = false
+max_execution_seconds = 300
+
+[commands.blocked_args]
+git = ["push --force", "push -f", "remote add", "remote set-url"]
+pip = ["install --user", "install -e"]
+
+# Restricted network — only package registries and your Git host
+[network]
+mode = "restricted"
+allowed_domains = [
+    "pypi.org",
+    "files.pythonhosted.org",
+    "registry.npmjs.org",
+    "github.com",
+    "api.github.com",
+]
+allowed_ports = [443]
+
+[resources]
+max_memory_mb = 4096
+max_cpu_percent = 50
+max_pids = 100
+
+[audit]
+enabled = true
+sign_entries = true

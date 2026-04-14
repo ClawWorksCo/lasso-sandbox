@@ -1,0 +1,36 @@
+name: Security
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * 1"  # Every Monday at 06:00 UTC
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install -e ".[all,dev]"
+          pip install pip-audit
+
+      - name: Run pip-audit
+        run: pip-audit
+
+      - name: Run Bandit (SAST)
+        run: |
+          pip install bandit[toml]
+          bandit -r lasso/ -ll -ii --skip B108,B310 --format json -o bandit-report.json || true
+          bandit -r lasso/ -ll -ii --skip B108,B310
+
+      - name: Run security tests
+        run: pytest tests/ -k "security" -m "not integration" -q --tb=short

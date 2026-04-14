@@ -1,0 +1,17 @@
+{
+  "$schema": "https://opencode.ai/schema/config.json",
+  "provider": "anthropic",
+  "model": "claude-sonnet-4-20250514",
+  "sandbox": {
+    "enabled": true,
+    "provider": "lasso",
+    "profile": "team-development"
+  },
+  "plugins": [
+    {
+      "name": "lasso-sandbox",
+      "path": "./node_modules/lasso-sandbox/opencode-lasso-plugin.js"
+    }
+  ],
+  "instructions": "All commands run inside a LASSO sandbox. Do not attempt to bypass sandbox restrictions."
+}

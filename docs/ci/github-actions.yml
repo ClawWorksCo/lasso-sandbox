@@ -1,0 +1,213 @@
+# LASSO CI/CD Pipeline for GitHub Actions
+#
+# This workflow runs on every push to main and on pull requests.
+# It validates LASSO across Python 3.10-3.12 on Linux and Windows,
+# then runs Docker-based integration tests in a separate job.
+#
+# Copy this file to .github/workflows/lasso-ci.yml in your repository.
+
+name: LASSO CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  # LASSO configuration — override these in your repo settings if needed.
+  LASSO_LOG_LEVEL: info
+  LASSO_AUDIT_DIR: ./audit
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Job 1: Unit tests across Python versions and operating systems
+  # ---------------------------------------------------------------------------
+  unit-tests:
+    name: Unit Tests (Python ${{ matrix.python-version }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # Cache pip dependencies to speed up subsequent runs.
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~\AppData\Local\pip\Cache
+          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-${{ matrix.python-version }}-
+
+      - name: Install LASSO and dev dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run unit tests
+        run: |
+          python -m pytest tests/ -m "not integration" -q \
+            --tb=short \
+            --junitxml=test-results/unit-${{ matrix.os }}-py${{ matrix.python-version }}.xml
+
+      - name: Run LASSO system check
+        # lasso check verifies the local environment (container runtime, config).
+        # On CI without Docker, this validates config parsing and non-Docker checks.
+        run: lasso check
+        continue-on-error: true
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.os }}-py${{ matrix.python-version }}
+          path: test-results/
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  # Job 2: Integration tests (requires Docker)
+  # ---------------------------------------------------------------------------
+  integration-tests:
+    name: Integration Tests (Docker)
+    runs-on: ubuntu-latest
+    needs: unit-tests
+
+    # Docker is available by default on ubuntu-latest runners.
+    # For self-hosted runners, ensure Docker is installed.
+    services:
+      # If your integration tests need a database or other service,
+      # define them here. LASSO itself uses the host Docker daemon.
+      docker:
+        image: docker:27-dind
+        options: --privileged
+        ports:
+          - 2375:2375
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-3.12-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-3.12-
+
+      - name: Install LASSO and dev dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Verify Docker is available
+        run: docker info
+
+      - name: Run LASSO system check
+        run: lasso check
+
+      - name: Run integration tests
+        run: |
+          python -m pytest tests/ -q \
+            --tb=short \
+            --junitxml=test-results/integration.xml
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-integration
+          path: test-results/
+          retention-days: 30
+
+      - name: Upload audit logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-logs-integration
+          path: audit/
+          retention-days: 90
+
+  # ---------------------------------------------------------------------------
+  # Job 3: Sandboxed agent execution (example for enterprise pipelines)
+  #
+  # This job demonstrates how to use LASSO as a security gate in CI/CD.
+  # An AI agent runs analysis inside a LASSO sandbox, and the pipeline
+  # verifies the audit log for compliance before proceeding.
+  # ---------------------------------------------------------------------------
+  sandboxed-agent:
+    name: Sandboxed Agent Execution
+    runs-on: ubuntu-latest
+    needs: unit-tests
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install LASSO
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Initialize LASSO project
+        run: lasso init --profile bank-analysis
+
+      - name: Run agent in LASSO sandbox
+        run: |
+          # Create a sandbox using the bank-analysis profile.
+          # --quiet suppresses banner output, prints only the sandbox ID.
+          SANDBOX_ID=$(lasso create bank-analysis --dir . --quiet)
+          echo "SANDBOX_ID=$SANDBOX_ID" >> "$GITHUB_ENV"
+
+          # Execute the agent's analysis script inside the sandbox.
+          lasso exec "$SANDBOX_ID" -- python3 analyze.py
+
+          # Verify the audit log has not been tampered with.
+          lasso audit verify ./audit/log.jsonl
+
+      - name: Collect audit evidence
+        if: always()
+        run: |
+          # Export audit log in CSV for compliance review.
+          lasso audit export ./audit/log.jsonl --format csv --output audit-report.csv
+        continue-on-error: true
+
+      - name: Upload audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-evidence
+          path: |
+            audit/
+            audit-report.csv
+          retention-days: 365  # Retain for DORA compliance (5-year recommendation)
+
+      - name: Stop sandbox
+        if: always()
+        run: lasso stop all

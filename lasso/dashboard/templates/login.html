@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>LASSO Dashboard — Login</title>
+    <style>
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --brand-primary:     #3b82f6;
+            --brand-primary-dim: #2563eb;
+            --bg-root:           #0b0f1a;
+            --bg-surface:        #111827;
+            --bg-elevated:       #1a2236;
+            --bg-input:          #0f172a;
+            --border-default:    #1e293b;
+            --border-focus:      var(--brand-primary);
+            --text-primary:      #f1f5f9;
+            --text-secondary:    #94a3b8;
+            --text-muted:        #64748b;
+            --status-error:      #ef4444;
+            --radius-md:         8px;
+            --radius-lg:         12px;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: var(--bg-root);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .login-container {
+            width: 100%;
+            max-width: 420px;
+            padding: 1.5rem;
+        }
+
+        .login-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-lg);
+            padding: 2.5rem 2rem;
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .login-header h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            letter-spacing: -0.025em;
+            margin-bottom: 0.5rem;
+        }
+
+        .login-header .brand {
+            color: var(--brand-primary);
+        }
+
+        .login-header p {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 0.8125rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: var(--bg-input);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-md);
+            color: var(--text-primary);
+            font-size: 0.9375rem;
+            font-family: "SF Mono", "Fira Code", monospace;
+            transition: border-color 0.15s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--border-focus);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+        }
+
+        .btn-login {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: var(--brand-primary);
+            color: #fff;
+            border: none;
+            border-radius: var(--radius-md);
+            font-size: 0.9375rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+
+        .btn-login:hover {
+            background: var(--brand-primary-dim);
+        }
+
+        .error-message {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-radius: var(--radius-md);
+            padding: 0.75rem 1rem;
+            margin-bottom: 1.5rem;
+            font-size: 0.875rem;
+            color: var(--status-error);
+        }
+
+        .tagline {
+            font-size: 0.8125rem;
+            color: var(--text-muted);
+            font-weight: 400;
+            letter-spacing: 0.01em;
+        }
+
+        .features {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-top: 1.25rem;
+            padding-top: 1.25rem;
+            border-top: 1px solid var(--border-default);
+        }
+
+        .features span {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            position: relative;
+            padding-left: 0.75rem;
+        }
+
+        .features span::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: var(--brand-primary);
+        }
+
+        .help-text {
+            text-align: center;
+            margin-top: 1.5rem;
+            font-size: 0.8125rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        .divider {
+            display: flex;
+            align-items: center;
+            margin: 1.5rem 0;
+            color: var(--text-muted);
+            font-size: 0.8125rem;
+        }
+
+        .divider::before,
+        .divider::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: var(--border-default);
+        }
+
+        .divider span {
+            padding: 0 0.75rem;
+        }
+
+        .btn-github {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: var(--bg-elevated);
+            color: var(--text-primary);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-md);
+            font-size: 0.9375rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s ease, border-color 0.15s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-github:hover {
+            background: var(--bg-surface);
+            border-color: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <h1><span class="brand">LASSO</span></h1>
+                <p class="tagline">Run AI coding agents safely inside sandboxed containers</p>
+                <p style="margin-top: 0.5rem;">Enter your access token to continue</p>
+            </div>
+
+            {% if error %}
+            <div class="error-message" role="alert">
+                {{ error }}
+            </div>
+            {% endif %}
+
+            <form method="post" action="{{ url_for('auth.login') }}">
+                {{ csrf_token() }}
+                <input type="hidden" name="login_method" value="token">
+                <div class="form-group">
+                    <label class="form-label" for="token-input">Access Token</label>
+                    <input type="password"
+                           id="token-input"
+                           name="token"
+                           class="form-input"
+                           placeholder="Paste your dashboard token"
+                           required
+                           autocomplete="off"
+                           autofocus>
+                </div>
+                <button type="submit" class="btn-login">Log In</button>
+            </form>
+
+            {% if github_available %}
+            <div class="divider">
+                <span>or</span>
+            </div>
+
+            <form method="post" action="{{ url_for('auth.login') }}">
+                {{ csrf_token() }}
+                <input type="hidden" name="login_method" value="github">
+                <button type="submit" class="btn-github">
+                    <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" style="vertical-align: middle; margin-right: 8px;">
+                        <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+                    </svg>
+                    Login with GitHub
+                </button>
+            </form>
+            {% endif %}
+        </div>
+
+        <p class="help-text">
+            First time? Check your terminal output for the access token.<br>
+            It is also stored at <code>~/.lasso/dashboard_token</code>
+            {% if github_available %}<br>Or run <code>lasso auth login</code> to authenticate with GitHub.{% endif %}
+        </p>
+    </div>
+</body>
+</html>

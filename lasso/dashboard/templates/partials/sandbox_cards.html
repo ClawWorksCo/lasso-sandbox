@@ -1,0 +1,45 @@
+{% for sb in sandboxes %}
+<div class="sandbox-card">
+    <div class="sandbox-card-header">
+        <span class="status-dot status-{{ sb.state }}"></span>
+        <strong>{{ sb.name }}</strong>
+        {% if sb.agent %}<span class="agent-badge">{{ sb.agent }}</span>{% endif %}
+    </div>
+    <div class="sandbox-meta">
+        <span>{{ sb.security_level }}</span>
+        <span>Created {{ sb.created_at | timeago }}</span>
+        {% if sb.blocked_count > 0 %}
+        <span style="color: var(--color-warning);">{{ sb.blocked_count }} blocked</span>
+        {% endif %}
+    </div>
+    <div class="sandbox-card-actions">
+        <a href="{{ url_for('dashboard.sandbox_detail', sandbox_id=sb.id) }}" class="btn btn-ghost btn-sm">
+            {% if sb.state == 'running' %}Connect{% else %}Details{% endif %}
+        </a>
+        {% if sb.state == 'running' %}
+        <form method="post"
+              action="{{ url_for('dashboard.sandbox_stop', sandbox_id=sb.id) }}"
+              style="margin: 0; display: inline;"
+              onsubmit="return confirmStop(this, '{{ sb.name }}');">
+            {{ csrf_token() }}
+            <button type="submit" class="btn btn-danger btn-sm">Stop</button>
+        </form>
+        {% elif sb.state == 'stopped' %}
+        <form method="post"
+              action="{{ url_for('dashboard.sandbox_remove', sandbox_id=sb.id) }}"
+              style="margin: 0; display: inline;"
+              onsubmit="return confirm('Remove sandbox {{ sb.name }}? This cannot be undone.');">
+            {{ csrf_token() }}
+            <button type="submit" class="btn btn-danger btn-sm">Remove</button>
+        </form>
+        {% endif %}
+        <a href="{{ url_for('dashboard.audit_log', sandbox_id=sb.id) }}" class="btn btn-ghost btn-sm">Audit</a>
+    </div>
+</div>
+{% endfor %}
+
+{% if not sandboxes %}
+<div style="text-align: center; padding: var(--sp-8); color: var(--text-tertiary);">
+    No sandboxes yet.
+</div>
+{% endif %}

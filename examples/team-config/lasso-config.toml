@@ -1,0 +1,30 @@
+# Team LASSO operational settings
+# Copy this to ~/.lasso/config.toml or set LASSO_CONFIG_PATH
+
+# Dashboard settings
+[dashboard]
+port = 8080
+host = "127.0.0.1"
+
+# Default profile applied when no --profile flag is given
+[defaults]
+profile = "team-development"
+
+# Audit log storage
+[audit]
+log_dir = "/var/log/lasso/audit"
+sign_entries = true
+# Store signing key outside the log directory for tamper-evidence
+signing_key_path = "/etc/lasso/audit-key"
+# Forward to SIEM via syslog
+syslog_address = "udp://siem.example.com:514"
+syslog_facility = "local0"
+
+# Webhook for security events (SIEM/SOAR integration)
+[[audit.webhooks]]
+enabled = true
+url = "https://siem.example.com/api/v1/lasso-events"
+events = ["violation", "lifecycle"]
+secret = "change-me-to-a-real-hmac-secret"
+timeout_seconds = 5
+retry_count = 2

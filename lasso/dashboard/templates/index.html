@@ -1,0 +1,594 @@
+{% extends "base.html" %}
+{% block title %}LASSO Dashboard — Sandboxes{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item">
+    <span class="breadcrumb-current">Dashboard</span>
+</li>
+{% endblock %}
+
+{% block content %}
+<style>
+    /* ---- Onboarding / Empty State ---- */
+    .onboarding {
+        max-width: 720px;
+        margin: var(--sp-12) auto;
+        text-align: center;
+    }
+    .onboarding h1 {
+        font-size: var(--text-3xl);
+        font-weight: 700;
+        margin-bottom: var(--sp-3);
+    }
+    .onboarding .subtitle {
+        color: var(--text-secondary);
+        font-size: var(--text-md);
+        margin-bottom: var(--sp-10);
+        line-height: 1.6;
+    }
+
+    /* ---- Agent Grid ---- */
+    .agent-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: var(--sp-4);
+        margin-bottom: var(--sp-8);
+    }
+    @media (max-width: 560px) {
+        .agent-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+    .agent-card {
+        background: var(--bg-surface);
+        border: 1px solid var(--border-default);
+        border-radius: var(--radius-xl);
+        padding: var(--sp-6);
+        cursor: pointer;
+        transition: border-color var(--transition-normal), box-shadow var(--transition-normal), background var(--transition-normal);
+        text-align: left;
+        display: flex;
+        align-items: flex-start;
+        gap: var(--sp-4);
+    }
+    .agent-card:hover {
+        border-color: var(--brand-primary-border);
+        background: var(--bg-hover);
+        box-shadow: var(--shadow-glow);
+    }
+    .agent-card:focus-visible {
+        outline: 2px solid var(--border-focus);
+        outline-offset: 2px;
+    }
+    .agent-card.selected {
+        border-color: var(--brand-primary);
+        background: var(--brand-primary-bg);
+        box-shadow: var(--shadow-glow);
+    }
+    .agent-icon {
+        flex-shrink: 0;
+        width: 44px;
+        height: 44px;
+        border-radius: var(--radius-lg);
+        background: var(--bg-elevated);
+        border: 1px solid var(--border-default);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: var(--font-mono);
+        font-size: var(--text-lg);
+        font-weight: 700;
+        color: var(--brand-accent);
+    }
+    .agent-card.selected .agent-icon {
+        background: var(--brand-primary);
+        color: #fff;
+        border-color: var(--brand-primary);
+    }
+    .agent-card h3 {
+        font-size: var(--text-md);
+        margin-bottom: 2px;
+    }
+    .agent-card p {
+        color: var(--text-secondary);
+        font-size: var(--text-sm);
+        margin: 0;
+    }
+    .btn-text {
+        background: none;
+        border: none;
+        color: var(--text-tertiary);
+        font-size: var(--text-sm);
+        cursor: pointer;
+        padding: var(--sp-2) var(--sp-4);
+        transition: color var(--transition-fast);
+    }
+    .btn-text:hover {
+        color: var(--text-secondary);
+    }
+    .btn-text-selected {
+        color: var(--brand-primary) !important;
+        font-weight: 600;
+        border-bottom: 2px solid var(--brand-primary);
+        padding-bottom: calc(var(--sp-2) - 2px);
+    }
+
+    /* ---- Create Form (single screen) ---- */
+    #create-config {
+        max-width: 640px;
+        margin: 0 auto;
+        text-align: left;
+    }
+    .config-section {
+        margin-bottom: var(--sp-6);
+    }
+    .config-section h3 {
+        font-size: var(--text-md);
+        margin-bottom: var(--sp-3);
+        color: var(--text-secondary);
+        font-weight: 500;
+    }
+
+    /* ---- Policy Cards ---- */
+    .policy-cards {
+        display: flex;
+        flex-direction: column;
+        gap: var(--sp-3);
+    }
+    .policy-card {
+        display: block;
+        background: var(--bg-surface);
+        border: 1px solid var(--border-default);
+        border-radius: var(--radius-lg);
+        padding: var(--sp-4) var(--sp-5);
+        cursor: pointer;
+        transition: border-color var(--transition-normal), background var(--transition-normal);
+    }
+    .policy-card:hover {
+        border-color: var(--border-strong);
+        background: var(--bg-hover);
+    }
+    .policy-card.selected {
+        border-color: var(--brand-primary);
+        background: var(--brand-primary-bg);
+    }
+    .policy-card input[type="radio"] {
+        position: absolute;
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+    .policy-card:has(input:focus-visible) {
+        outline: 2px solid var(--brand-primary);
+        outline-offset: 2px;
+    }
+    .policy-card strong {
+        display: block;
+        font-size: var(--text-md);
+        margin-bottom: var(--sp-1);
+    }
+    .policy-card p {
+        color: var(--text-secondary);
+        font-size: var(--text-sm);
+        margin: 0;
+        line-height: 1.5;
+    }
+
+    .form-input-lg {
+        width: 100%;
+        max-width: 500px;
+        background: var(--bg-input);
+        border: 1px solid var(--border-default);
+        border-radius: var(--radius-md);
+        padding: var(--sp-3) var(--sp-4);
+        color: var(--text-primary);
+        font-family: var(--font-mono);
+        font-size: var(--text-sm);
+        transition: border-color var(--transition-fast);
+    }
+    .form-input-lg:focus {
+        outline: none;
+        border-color: var(--border-focus);
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    }
+    .hint {
+        color: var(--text-tertiary);
+        font-size: var(--text-xs);
+        margin-top: var(--sp-2);
+    }
+
+    .btn-lg {
+        padding: var(--sp-3) var(--sp-8);
+        font-size: var(--text-md);
+        margin-top: var(--sp-4);
+    }
+
+    /* ---- Sandbox Header ---- */
+    .sandbox-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: var(--sp-6);
+        flex-wrap: wrap;
+        gap: var(--sp-3);
+    }
+    .sandbox-header h1 {
+        font-size: var(--text-2xl);
+    }
+
+    /* ---- Sandbox Grid (card layout) ---- */
+    .sandbox-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: var(--sp-4);
+        margin-bottom: var(--sp-8);
+    }
+    .sandbox-card {
+        background: var(--bg-surface);
+        border: 1px solid var(--border-default);
+        border-radius: var(--radius-xl);
+        padding: var(--sp-5);
+        transition: border-color var(--transition-normal);
+    }
+    .sandbox-card:hover {
+        border-color: var(--border-strong);
+    }
+    .sandbox-card-header {
+        display: flex;
+        align-items: center;
+        gap: var(--sp-2);
+        margin-bottom: var(--sp-3);
+    }
+    .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        flex-shrink: 0;
+    }
+    .status-dot.status-running {
+        background: var(--color-success);
+        box-shadow: 0 0 6px rgba(16, 185, 129, 0.5);
+    }
+    .status-dot.status-stopped { background: var(--color-muted); }
+    .status-dot.status-error { background: var(--color-error); }
+    .status-dot.status-created { background: var(--color-info); }
+    .status-dot.status-configuring { background: var(--color-warning); }
+    .status-dot.status-paused { background: var(--color-warning); }
+    .agent-badge {
+        font-size: var(--text-xs);
+        background: var(--brand-primary-bg);
+        color: var(--brand-accent);
+        border: 1px solid var(--brand-primary-border);
+        padding: 2px 8px;
+        border-radius: 999px;
+        margin-left: auto;
+    }
+    .sandbox-meta {
+        display: flex;
+        gap: var(--sp-4);
+        color: var(--text-tertiary);
+        font-size: var(--text-sm);
+        margin-bottom: var(--sp-4);
+    }
+    .sandbox-card-actions {
+        display: flex;
+        gap: var(--sp-2);
+        flex-wrap: wrap;
+    }
+    .sandbox-card-actions .btn {
+        font-size: var(--text-xs);
+        padding: var(--sp-1) var(--sp-3);
+    }
+
+    /* ---- Stats Row (compact) ---- */
+    .stats-compact {
+        display: flex;
+        gap: var(--sp-6);
+        margin-bottom: var(--sp-6);
+        flex-wrap: wrap;
+    }
+    .stat-inline {
+        display: flex;
+        align-items: baseline;
+        gap: var(--sp-2);
+    }
+    .stat-inline .stat-num {
+        font-size: var(--text-xl);
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+    }
+    .stat-inline .stat-label {
+        font-size: var(--text-sm);
+        color: var(--text-tertiary);
+    }
+    .stat-num.text-success { color: var(--color-success); }
+    .stat-num.text-error { color: var(--color-error); }
+    .stat-num.text-warning { color: var(--color-warning); }
+
+    /* ---- Wizard inline create (when sandboxes exist) ---- */
+    #inline-wizard {
+        margin-bottom: var(--sp-8);
+    }
+    #inline-wizard .onboarding {
+        margin: 0 auto;
+        max-width: 720px;
+    }
+
+    /* ---- Extra Mounts ---- */
+    .mount-row {
+        display: flex;
+        align-items: center;
+        gap: var(--sp-2);
+        margin-bottom: var(--sp-2);
+    }
+    .mount-row .form-input {
+        background: var(--bg-input);
+        border: 1px solid var(--border-default);
+        border-radius: var(--radius-md);
+        padding: var(--sp-2) var(--sp-3);
+        color: var(--text-primary);
+        font-family: var(--font-mono);
+        font-size: var(--text-sm);
+        transition: border-color var(--transition-fast);
+    }
+    .mount-row .form-input:focus {
+        outline: none;
+        border-color: var(--border-focus);
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    }
+    .mount-arrow {
+        padding: 0 var(--sp-1);
+        color: var(--text-muted);
+        flex-shrink: 0;
+        font-size: var(--text-sm);
+    }
+    .mount-ro {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: var(--text-xs);
+        color: var(--text-secondary);
+        white-space: nowrap;
+        flex-shrink: 0;
+        cursor: pointer;
+    }
+    .mount-ro input[type="checkbox"] {
+        accent-color: var(--brand-primary);
+    }
+    .btn-remove {
+        background: none;
+        border: 1px solid var(--border-default);
+        border-radius: var(--radius-md);
+        color: var(--text-tertiary);
+        cursor: pointer;
+        font-size: var(--text-md);
+        padding: var(--sp-1) var(--sp-2);
+        line-height: 1;
+        transition: color var(--transition-fast), border-color var(--transition-fast);
+        flex-shrink: 0;
+    }
+    .btn-remove:hover {
+        color: var(--color-error);
+        border-color: var(--color-error);
+    }
+    .btn-outline {
+        background: none;
+        border: 1px dashed var(--border-default);
+        border-radius: var(--radius-md);
+        color: var(--text-tertiary);
+        cursor: pointer;
+        font-size: var(--text-sm);
+        padding: var(--sp-2) var(--sp-3);
+        transition: color var(--transition-fast), border-color var(--transition-fast);
+    }
+    .btn-outline:hover {
+        color: var(--text-secondary);
+        border-color: var(--border-strong);
+    }
+    .optional {
+        color: var(--text-tertiary);
+        font-weight: 400;
+        font-size: var(--text-sm);
+    }
+
+    /* ---- Advanced toggle ---- */
+    .advanced-toggle {
+        background: none;
+        border: none;
+        color: var(--text-tertiary);
+        font-size: var(--text-sm);
+        cursor: pointer;
+        padding: var(--sp-1) 0;
+        transition: color var(--transition-fast);
+    }
+    .advanced-toggle:hover {
+        color: var(--text-secondary);
+    }
+    .advanced-content {
+        display: none;
+        margin-top: var(--sp-3);
+    }
+    .advanced-content.visible {
+        display: block;
+    }
+</style>
+
+{% if has_sandboxes %}
+<!-- ========== EXISTING SANDBOXES VIEW ========== -->
+
+<div class="sandbox-header">
+    <h1>Your Sandboxes</h1>
+    <button onclick="showCreateWizard()" class="btn btn-primary" id="new-sandbox-btn">+ New Sandbox</button>
+</div>
+
+<!-- Compact stats -->
+<div class="stats-compact">
+    <div class="stat-inline">
+        <span class="stat-num">{{ stats.total }}</span>
+        <span class="stat-label">sandboxes</span>
+    </div>
+    <div class="stat-inline">
+        <span class="stat-num text-success">{{ stats.running }}</span>
+        <span class="stat-label">running</span>
+    </div>
+    {% if stats.errors > 0 %}
+    <div class="stat-inline">
+        <span class="stat-num text-error">{{ stats.errors }}</span>
+        <span class="stat-label">errors</span>
+    </div>
+    {% endif %}
+    <div class="stat-inline">
+        <span class="stat-num">{{ stats.total_execs }}</span>
+        <span class="stat-label">commands run</span>
+    </div>
+    {% if stats.total_blocked > 0 %}
+    <div class="stat-inline">
+        <span class="stat-num text-warning">{{ stats.total_blocked }}</span>
+        <span class="stat-label">actions blocked</span>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Inline create wizard (hidden until "New Sandbox" clicked) -->
+<div id="inline-wizard" style="display:none;">
+    {% include "partials/create_form.html" %}
+</div>
+
+<!-- Sandbox cards -->
+<div class="sandbox-grid"
+     id="sandbox-grid-wrapper"
+     hx-get="{{ url_for('dashboard.partial_sandbox_cards') }}"
+     hx-trigger="every 5s"
+     hx-swap="innerHTML">
+    {% include "partials/sandbox_cards.html" %}
+</div>
+
+{% else %}
+<!-- ========== EMPTY STATE — SINGLE-SCREEN CREATE ========== -->
+
+{% include "partials/create_form.html" %}
+
+{% endif %}
+
+<script>
+(function() {
+    // ---- Agent selection (highlight card, no wizard step change) ----
+    function selectAgent(agentId, icon, name) {
+        // Set hidden input(s)
+        document.querySelectorAll('#agent-input').forEach(function(el) {
+            el.value = agentId;
+        });
+
+        // Highlight the selected agent card, deselect others
+        document.querySelectorAll('.agent-card').forEach(function(card) {
+            card.classList.remove('selected');
+        });
+
+        // Update "Just a sandbox" buttons
+        document.querySelectorAll('.btn-text-sandbox').forEach(function(btn) {
+            btn.classList.remove('btn-text-selected');
+            btn.textContent = 'Just a sandbox (no AI agent)';
+        });
+
+        if (agentId) {
+            // Find the card that was clicked and highlight it
+            document.querySelectorAll('.agent-card').forEach(function(card) {
+                var label = card.getAttribute('aria-label');
+                if (label && label.indexOf(name) !== -1) {
+                    card.classList.add('selected');
+                }
+            });
+        } else {
+            // "No agent" selected — highlight the plain sandbox button
+            document.querySelectorAll('.btn-text-sandbox').forEach(function(btn) {
+                btn.classList.add('btn-text-selected');
+                btn.textContent = 'Plain sandbox selected (no AI agent)';
+            });
+        }
+
+        // Show the rest of the form
+        document.querySelectorAll('#create-config').forEach(function(f) {
+            f.style.display = 'block';
+        });
+    }
+
+    function selectPolicy(el) {
+        var cards = el.closest('.policy-cards').querySelectorAll('.policy-card');
+        cards.forEach(function(c) { c.classList.remove('selected'); });
+        el.classList.add('selected');
+        el.querySelector('input[type="radio"]').checked = true;
+    }
+
+    function showCreateWizard() {
+        var wizard = document.getElementById('inline-wizard');
+        var btn = document.getElementById('new-sandbox-btn');
+        if (wizard.style.display === 'none') {
+            wizard.style.display = 'block';
+            btn.textContent = 'Cancel';
+            btn.classList.remove('btn-primary');
+            btn.classList.add('btn-ghost');
+        } else {
+            wizard.style.display = 'none';
+            btn.textContent = '+ New Sandbox';
+            btn.classList.remove('btn-ghost');
+            btn.classList.add('btn-primary');
+        }
+    }
+
+    function toggleAdvanced(btn) {
+        var content = btn.nextElementSibling;
+        content.classList.toggle('visible');
+        btn.textContent = content.classList.contains('visible') ? 'Hide advanced options' : 'Advanced options';
+    }
+
+    // ---- Extra mounts ----
+    function addMountRow(container) {
+        var rowId = 'mount-src-' + Date.now();
+        var row = document.createElement('div');
+        row.className = 'mount-row';
+        row.innerHTML = '<input type="text" data-mount="source" id="' + rowId + '" placeholder="/path/on/your/computer" class="form-input" style="flex:2">'
+            + '<button type="button" class="btn btn-sm btn-ghost" onclick="openBrowser(\'' + rowId + '\')" title="Browse">&#128193;</button>'
+            + '<span class="mount-arrow">&rarr;</span>'
+            + '<input type="text" data-mount="target" placeholder="/data" class="form-input" style="flex:1">'
+            + '<label class="mount-ro"><input type="checkbox" data-mount="ro"> Read only</label>'
+            + '<button type="button" class="btn-remove" onclick="this.parentElement.remove()">&times;</button>';
+        container.appendChild(row);
+    }
+
+    function serializeMounts(form) {
+        var mounts = [];
+        var rows = form.querySelectorAll('.mount-row');
+        rows.forEach(function(row) {
+            var source = row.querySelector('[data-mount="source"]').value.trim();
+            var target = row.querySelector('[data-mount="target"]').value.trim();
+            var ro = row.querySelector('[data-mount="ro"]').checked;
+            if (source && target) {
+                mounts.push({ source: source, target: target, mode: ro ? 'ro' : 'rw' });
+            }
+        });
+        form.querySelector('input[name="mounts"]').value = mounts.length ? JSON.stringify(mounts) : '';
+    }
+
+    // Expose to global scope for onclick handlers
+    window.selectAgent = selectAgent;
+    window.selectPolicy = selectPolicy;
+    window.showCreateWizard = showCreateWizard;
+    window.toggleAdvanced = toggleAdvanced;
+    window.addMountRow = addMountRow;
+    window.serializeMounts = serializeMounts;
+
+    // Handle #create-sandbox hash from sidebar "New Sandbox" link
+    if (window.location.hash === '#create-sandbox') {
+        var wizard = document.getElementById('inline-wizard');
+        var btn = document.getElementById('new-sandbox-btn');
+        if (wizard && btn) {
+            wizard.style.display = 'block';
+            btn.textContent = 'Cancel';
+            btn.classList.remove('btn-primary');
+            btn.classList.add('btn-ghost');
+            wizard.scrollIntoView({ behavior: 'smooth' });
+        }
+    }
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,216 @@
+# LASSO CI/CD Pipeline for Azure DevOps
+#
+# This pipeline runs unit tests on Linux and Windows, performs
+# security checks, and runs Docker-based integration tests.
+#
+# Copy this file to azure-pipelines.yml in your repository root.
+# Create a variable group named "lasso-config" in Azure DevOps with
+# any environment-specific overrides.
+
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    exclude:
+      - "docs/**"
+      - "*.md"
+
+pr:
+  branches:
+    include:
+      - main
+
+# Reference a variable group for environment-specific LASSO settings.
+# Create this in Azure DevOps > Pipelines > Library > Variable groups.
+variables:
+  - group: lasso-config
+  - name: LASSO_LOG_LEVEL
+    value: info
+  - name: LASSO_AUDIT_DIR
+    value: $(Build.SourcesDirectory)/audit
+
+# ---------------------------------------------------------------------------
+# Stage 1: Unit tests across platforms
+# ---------------------------------------------------------------------------
+stages:
+  - stage: Test
+    displayName: "Unit Tests"
+    jobs:
+      - job: UnitTests
+        displayName: "Unit Tests"
+        strategy:
+          matrix:
+            Linux_Python310:
+              imageName: ubuntu-latest
+              pythonVersion: "3.10"
+            Linux_Python311:
+              imageName: ubuntu-latest
+              pythonVersion: "3.11"
+            Linux_Python312:
+              imageName: ubuntu-latest
+              pythonVersion: "3.12"
+            Windows_Python310:
+              imageName: windows-latest
+              pythonVersion: "3.10"
+            Windows_Python311:
+              imageName: windows-latest
+              pythonVersion: "3.11"
+            Windows_Python312:
+              imageName: windows-latest
+              pythonVersion: "3.12"
+        pool:
+          vmImage: $(imageName)
+
+        steps:
+          - task: UsePythonVersion@0
+            displayName: "Use Python $(pythonVersion)"
+            inputs:
+              versionSpec: $(pythonVersion)
+
+          # Cache pip packages for faster builds.
+          - task: Cache@2
+            displayName: "Cache pip packages"
+            inputs:
+              key: 'pip | "$(Agent.OS)" | "$(pythonVersion)" | pyproject.toml'
+              restoreKeys: |
+                pip | "$(Agent.OS)" | "$(pythonVersion)"
+              path: $(PIP_CACHE_DIR)
+
+          - script: |
+              python -m pip install --upgrade pip
+              pip install -e ".[dev]"
+            displayName: "Install LASSO and dev dependencies"
+
+          - script: |
+              python -m pytest tests/ -m "not integration" -q --tb=short --junitxml=test-results/unit.xml
+            displayName: "Run unit tests"
+
+          # Publish test results to Azure DevOps test tab.
+          - task: PublishTestResults@2
+            displayName: "Publish test results"
+            condition: always()
+            inputs:
+              testResultsFormat: JUnit
+              testResultsFiles: "test-results/*.xml"
+              testRunTitle: "Unit Tests - $(imageName) - Python $(pythonVersion)"
+
+          - script: lasso check
+            displayName: "Run LASSO system check"
+            continueOnError: true
+
+  # ---------------------------------------------------------------------------
+  # Stage 2: Security checks
+  # ---------------------------------------------------------------------------
+  - stage: SecurityScan
+    displayName: "Security Scan"
+    dependsOn: Test
+    jobs:
+      - job: SecurityCheck
+        displayName: "Security Check"
+        pool:
+          vmImage: ubuntu-latest
+
+        steps:
+          - task: UsePythonVersion@0
+            displayName: "Use Python 3.12"
+            inputs:
+              versionSpec: "3.12"
+
+          - script: |
+              python -m pip install --upgrade pip
+              pip install -e ".[dev]"
+            displayName: "Install LASSO"
+
+          - script: lasso check
+            displayName: "LASSO system check"
+
+          - script: |
+              pip install pip-audit
+              pip-audit --strict --desc || true
+            displayName: "Audit Python dependencies"
+
+          # Initialize LASSO and verify configuration is valid.
+          - script: |
+              lasso init --profile bank-analysis
+              lasso profile list
+            displayName: "Verify LASSO profiles"
+
+  # ---------------------------------------------------------------------------
+  # Stage 3: Integration tests (Docker required)
+  # ---------------------------------------------------------------------------
+  - stage: Integration
+    displayName: "Integration Tests"
+    dependsOn: SecurityScan
+    jobs:
+      - job: IntegrationTests
+        displayName: "Integration Tests (Docker)"
+        pool:
+          vmImage: ubuntu-latest
+
+        steps:
+          - task: UsePythonVersion@0
+            displayName: "Use Python 3.12"
+            inputs:
+              versionSpec: "3.12"
+
+          - task: Cache@2
+            displayName: "Cache pip packages"
+            inputs:
+              key: 'pip | "$(Agent.OS)" | "3.12" | pyproject.toml'
+              restoreKeys: |
+                pip | "$(Agent.OS)" | "3.12"
+              path: $(PIP_CACHE_DIR)
+
+          - script: |
+              python -m pip install --upgrade pip
+              pip install -e ".[dev]"
+            displayName: "Install LASSO and dev dependencies"
+
+          # Docker is pre-installed on ubuntu-latest Azure agents.
+          - script: docker info
+            displayName: "Verify Docker"
+
+          - script: lasso check
+            displayName: "LASSO system check"
+
+          - script: |
+              python -m pytest tests/ -q --tb=short --junitxml=test-results/integration.xml
+            displayName: "Run all tests (unit + integration)"
+
+          - task: PublishTestResults@2
+            displayName: "Publish test results"
+            condition: always()
+            inputs:
+              testResultsFormat: JUnit
+              testResultsFiles: "test-results/*.xml"
+              testRunTitle: "Integration Tests"
+
+          # ---------------------------------------------------------------------------
+          # Example: Run an AI agent inside a LASSO sandbox as a pipeline step.
+          # ---------------------------------------------------------------------------
+          - script: |
+              lasso init --profile bank-analysis
+
+              # Create sandbox and capture ID.
+              SANDBOX_ID=$(lasso create bank-analysis --dir . --quiet)
+
+              # Execute agent workload inside the sandbox.
+              lasso exec "$SANDBOX_ID" -- python3 analyze.py
+
+              # Verify audit log integrity — fails the pipeline if tampered.
+              lasso audit verify ./audit/log.jsonl
+            displayName: "Run agent in LASSO sandbox"
+            continueOnError: true
+
+          - script: lasso stop all || true
+            displayName: "Cleanup sandboxes"
+            condition: always()
+
+          # Collect audit logs as pipeline artifacts.
+          - task: PublishBuildArtifacts@1
+            displayName: "Publish audit logs"
+            condition: always()
+            inputs:
+              pathToPublish: audit/
+              artifactName: audit-logs

@@ -1,0 +1,424 @@
+{% extends "base.html" %}
+{% block title %}LASSO — Profile: {{ profile.name }}{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item">
+    <a href="{{ url_for('dashboard.profiles_list') }}">Sandbox Rules</a>
+</li>
+<li><span class="breadcrumb-separator" aria-hidden="true">/</span></li>
+<li class="breadcrumb-item">
+    <span class="breadcrumb-current">{{ profile.name }}</span>
+</li>
+{% endblock %}
+
+{% block content %}
+<style>
+    .profile-summary {
+        display: flex;
+        align-items: center;
+        gap: var(--sp-3);
+        margin-bottom: var(--sp-3);
+        flex-wrap: wrap;
+    }
+    .profile-summary h2 {
+        margin: 0;
+        font-size: var(--text-xl);
+    }
+    .profile-level-badge {
+        font-size: 0.75rem;
+        padding: 3px 10px;
+        border-radius: 9999px;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
+    .badge-strict {
+        background: rgba(239, 68, 68, 0.12);
+        color: #ef4444;
+        border: 1px solid rgba(239, 68, 68, 0.25);
+    }
+    .badge-standard {
+        background: rgba(245, 158, 11, 0.12);
+        color: #f59e0b;
+        border: 1px solid rgba(245, 158, 11, 0.25);
+    }
+    .badge-flexible {
+        background: rgba(59, 130, 246, 0.12);
+        color: #3b82f6;
+        border: 1px solid rgba(59, 130, 246, 0.25);
+    }
+    .stats-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: var(--sp-3);
+        margin-top: var(--sp-4);
+    }
+    .stat-box {
+        background: var(--bg-elevated);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-md);
+        padding: var(--sp-3) var(--sp-4);
+        text-align: center;
+    }
+    .stat-box-label {
+        font-size: var(--text-xs);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-tertiary);
+        font-weight: 600;
+        margin-bottom: var(--sp-1);
+    }
+    .stat-box-value {
+        font-size: var(--text-lg);
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+    .section-allowed {
+        background: rgba(16, 185, 129, 0.04);
+        border: 1px solid rgba(16, 185, 129, 0.15);
+        border-radius: var(--radius-lg);
+        padding: var(--sp-5);
+        margin-bottom: var(--sp-4);
+    }
+    .section-allowed h3 {
+        color: #10b981;
+        margin-top: 0;
+        margin-bottom: var(--sp-3);
+        font-size: var(--text-md);
+    }
+    .section-blocked {
+        background: rgba(239, 68, 68, 0.04);
+        border: 1px solid rgba(239, 68, 68, 0.15);
+        border-radius: var(--radius-lg);
+        padding: var(--sp-5);
+        margin-bottom: var(--sp-4);
+    }
+    .section-blocked h3 {
+        color: #ef4444;
+        margin-top: 0;
+        margin-bottom: var(--sp-3);
+        font-size: var(--text-md);
+    }
+    .subsection {
+        margin-bottom: var(--sp-4);
+    }
+    .subsection:last-child {
+        margin-bottom: 0;
+    }
+    .subsection-label {
+        font-size: var(--text-sm);
+        font-weight: 600;
+        color: var(--text-secondary);
+        margin-bottom: var(--sp-2);
+    }
+    .cmd-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+    .cmd-tags .cmd-tag {
+        font-size: 0.75rem;
+        padding: 2px 8px;
+        border-radius: var(--radius-sm);
+        font-family: var(--font-mono, monospace);
+    }
+    .cmd-tag-allowed {
+        background: rgba(16, 185, 129, 0.1);
+        color: #10b981;
+        border: 1px solid rgba(16, 185, 129, 0.2);
+    }
+    .cmd-tag-blocked {
+        background: rgba(239, 68, 68, 0.1);
+        color: #ef4444;
+        border: 1px solid rgba(239, 68, 68, 0.2);
+    }
+    .domain-list, .path-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    .domain-list li, .path-list li {
+        font-size: var(--text-sm);
+        padding: 2px 0;
+        font-family: var(--font-mono, monospace);
+        color: var(--text-secondary);
+    }
+    .blocked-args-item {
+        margin-bottom: var(--sp-2);
+    }
+    .blocked-args-item code {
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-right: var(--sp-2);
+    }
+    .inline-note {
+        font-size: var(--text-sm);
+        color: var(--text-tertiary);
+        font-style: italic;
+    }
+</style>
+
+<!-- Summary Card -->
+<div class="card mb-6">
+    <div class="card-body">
+        <div class="profile-summary">
+            <h2>{{ profile.name }}</h2>
+            {% if profile_data.network.mode == 'none' %}
+            <span class="profile-level-badge badge-strict">High Security</span>
+            {% elif profile_data.network.mode == 'restricted' %}
+            <span class="profile-level-badge badge-standard">Medium Security</span>
+            {% elif profile_data.network.mode == 'full' %}
+            <span class="profile-level-badge badge-flexible">Open</span>
+            {% else %}
+            <span class="badge badge-{{ source }}" style="margin-left: var(--sp-1);">{{ source }}</span>
+            {% endif %}
+            {% if source == 'saved' %}
+            <div style="margin-left: auto; display: flex; gap: var(--sp-2);">
+                <a href="{{ url_for('dashboard.profile_edit', name=profile.name) }}" class="btn btn-sm btn-primary">Edit</a>
+                <form method="post"
+                      action="{{ url_for('dashboard.profile_delete', name=profile.name) }}"
+                      style="margin: 0; display: inline;"
+                      onsubmit="return confirm('Delete profile {{ profile.name }}? This cannot be undone.');">
+                    {{ csrf_token() }}
+                    <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                </form>
+            </div>
+            {% elif source == 'builtin' %}
+            <a href="{{ url_for('dashboard.profile_edit', name=profile.name) }}" class="btn btn-sm btn-secondary" style="margin-left: auto;">Duplicate & Edit</a>
+            {% endif %}
+        </div>
+
+        {% if profile.description %}
+        <p class="text-secondary" style="line-height: 1.6; margin-bottom: var(--sp-4);">{{ profile.description }}</p>
+        {% endif %}
+
+        <div class="stats-row">
+            <div class="stat-box">
+                <div class="stat-box-label">Commands</div>
+                <div class="stat-box-value">
+                    {% if profile_data.commands.mode == 'whitelist' %}
+                    {{ profile_data.commands.whitelist | length }} allowed
+                    {% elif profile_data.commands.mode == 'blacklist' %}
+                    {{ profile_data.commands.blacklist | length }} blocked
+                    {% endif %}
+                </div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-box-label">Network</div>
+                <div class="stat-box-value">
+                    {% if profile_data.network.mode == 'none' %}Offline{% elif profile_data.network.mode == 'restricted' %}Limited{% else %}Open{% endif %}
+                </div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-box-label">Memory</div>
+                <div class="stat-box-value">{{ profile_data.resources.max_memory_mb }} MB</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-box-label">Mode</div>
+                <div class="stat-box-value" style="text-transform: capitalize;">{{ profile_data.commands.mode }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- What the AI CAN do -->
+<div class="section-allowed">
+    <h3>What the AI can do</h3>
+
+    <!-- Commands -->
+    <div class="subsection">
+        <div class="subsection-label">
+            {% if profile_data.commands.mode == 'whitelist' %}
+            Allowed commands ({{ profile_data.commands.whitelist | length }})
+            {% else %}
+            All commands except those on the blocked list
+            {% endif %}
+        </div>
+        {% if profile_data.commands.mode == 'whitelist' %}
+        <div class="cmd-tags">
+            {% for cmd in profile_data.commands.whitelist | sort %}
+            <span class="cmd-tag cmd-tag-allowed">{{ cmd }}</span>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="inline-note">Blocklist mode: any command not explicitly blocked is permitted.</p>
+        {% endif %}
+    </div>
+
+    <!-- Shell operators -->
+    {% if profile_data.commands.allow_shell_operators %}
+    <div class="subsection">
+        <div class="subsection-label">Shell operators</div>
+        <p class="text-secondary" style="font-size: var(--text-sm); margin: 0;">Pipes (<code>|</code>), chaining (<code>&&</code>), and redirects (<code>></code>) are allowed.</p>
+    </div>
+    {% endif %}
+
+    <!-- Network -->
+    {% if profile_data.network.mode != 'none' %}
+    <div class="subsection">
+        <div class="subsection-label">Network access</div>
+        {% if profile_data.network.mode == 'restricted' and profile_data.network.allowed_domains %}
+        <ul class="domain-list">
+            {% for domain in profile_data.network.allowed_domains %}
+            <li>{{ domain }}</li>
+            {% endfor %}
+        </ul>
+        {% elif profile_data.network.mode == 'full' %}
+        <p class="inline-note">Unrestricted internet access.</p>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Filesystem -->
+    <div class="subsection">
+        <div class="subsection-label">Filesystem</div>
+        <p class="text-secondary" style="font-size: var(--text-sm); margin: 0;">
+            Read/write in <code>{{ profile_data.filesystem.working_dir }}</code>
+            {% if profile_data.commands.max_execution_seconds %}
+            &mdash; max {{ profile_data.commands.max_execution_seconds }}s per command
+            {% endif %}
+        </p>
+    </div>
+</div>
+
+<!-- What the AI CANNOT do -->
+<div class="section-blocked">
+    <h3>What the AI cannot do</h3>
+
+    <!-- Blocked commands -->
+    <div class="subsection">
+        <div class="subsection-label">Blocked commands</div>
+        {% if profile_data.commands.mode == 'whitelist' %}
+        <p class="inline-note">Everything not in the allowed list above is blocked.</p>
+        {% elif profile_data.commands.mode == 'blacklist' and profile_data.commands.blacklist %}
+        <div class="cmd-tags">
+            {% for cmd in profile_data.commands.blacklist | sort %}
+            <span class="cmd-tag cmd-tag-blocked">{{ cmd }}</span>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="inline-note">No specific commands are blocked.</p>
+        {% endif %}
+    </div>
+
+    <!-- Blocked argument patterns -->
+    {% if profile_data.commands.blocked_args %}
+    <div class="subsection">
+        <div class="subsection-label">Blocked argument patterns</div>
+        {% for cmd, patterns in profile_data.commands.blocked_args.items() %}
+        <div class="blocked-args-item">
+            <code>{{ cmd }}</code>
+            {% for pattern in patterns %}
+            <span class="cmd-tag cmd-tag-blocked">{{ pattern }}</span>
+            {% endfor %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Network restrictions -->
+    <div class="subsection">
+        <div class="subsection-label">Network</div>
+        {% if profile_data.network.mode == 'none' %}
+        <p class="inline-note">No network access at all (fully isolated).</p>
+        {% elif profile_data.network.mode == 'restricted' %}
+        <p class="inline-note">All domains not in the allowed list are blocked. Private networks and databases are unreachable.</p>
+        {% endif %}
+        {% if profile_data.network.blocked_cidrs %}
+        <ul class="path-list" style="margin-top: var(--sp-1);">
+            {% for cidr in profile_data.network.blocked_cidrs %}
+            <li>{{ cidr }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+    </div>
+
+    <!-- Filesystem restrictions -->
+    <div class="subsection">
+        <div class="subsection-label">Filesystem</div>
+        {% if profile_data.filesystem.read_only_paths %}
+        <p class="text-secondary" style="font-size: var(--text-sm); margin: 0 0 var(--sp-1) 0;">System paths are read-only:</p>
+        <ul class="path-list">
+            {% for path in profile_data.filesystem.read_only_paths %}
+            <li>{{ path }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+        {% if profile_data.filesystem.hidden_paths %}
+        <p class="text-secondary" style="font-size: var(--text-sm); margin: var(--sp-2) 0 var(--sp-1) 0;">Hidden from the sandbox:</p>
+        <ul class="path-list">
+            {% for path in profile_data.filesystem.hidden_paths %}
+            <li>{{ path }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+        {% if not profile_data.filesystem.read_only_paths and not profile_data.filesystem.hidden_paths %}
+        <p class="inline-note">Default filesystem restrictions apply.</p>
+        {% endif %}
+    </div>
+
+    <!-- Shell operators blocked -->
+    {% if not profile_data.commands.allow_shell_operators %}
+    <div class="subsection">
+        <div class="subsection-label">Shell operators</div>
+        <p class="inline-note">Pipes, chaining, and redirects are blocked.</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Audit (collapsed by default) -->
+<details class="card" style="margin-bottom: var(--sp-4);">
+    <summary class="card-header" style="cursor: pointer; user-select: none;">
+        <span style="display: flex; align-items: center; gap: var(--sp-3);">
+            <strong>Audit</strong>
+            <span class="text-secondary" style="font-size: var(--text-sm);">
+                Activity logging: {% if profile_data.audit.enabled %}<span class="text-success">ON</span>{% else %}<span class="text-error">OFF</span>{% endif %}
+                &mdash;
+                Tamper-proof signatures: {% if profile_data.audit.sign_entries %}<span class="text-success">ON</span>{% else %}<span class="text-muted">OFF</span>{% endif %}
+            </span>
+        </span>
+    </summary>
+    <div class="card-body">
+        <div class="detail-grid">
+            <div class="detail-item">
+                <div class="detail-label">Activity recording</div>
+                <div class="detail-value">
+                    {% if profile_data.audit.enabled %}
+                    <span class="text-success font-semibold">Enabled</span>
+                    {% else %}
+                    <span class="text-error font-semibold">Disabled</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="detail-item">
+                <div class="detail-label">Tamper-proof signatures</div>
+                <div class="detail-value">
+                    {% if profile_data.audit.sign_entries %}
+                    <span class="text-success">Enabled</span>
+                    {% else %}
+                    <span class="text-muted">Disabled</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="detail-item">
+                <div class="detail-label">Record command output</div>
+                <div class="detail-value">{{ "Yes" if profile_data.audit.include_command_output else "No" }}</div>
+            </div>
+            <div class="detail-item">
+                <div class="detail-label">Record file changes</div>
+                <div class="detail-value">{{ "Yes" if profile_data.audit.include_file_diffs else "No" }}</div>
+            </div>
+            <div class="detail-item">
+                <div class="detail-label">Log format</div>
+                <div class="detail-value">{{ profile_data.audit.log_format }}</div>
+            </div>
+            <div class="detail-item">
+                <div class="detail-label">Max log size</div>
+                <div class="detail-value">{{ profile_data.audit.max_log_size_mb }}MB</div>
+            </div>
+        </div>
+    </div>
+</details>
+
+{% endblock %}

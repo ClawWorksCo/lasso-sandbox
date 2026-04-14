@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}LASSO — Audit Log: {{ sandbox.id }}{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item">
+    <a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+</li>
+<li><span class="breadcrumb-separator" aria-hidden="true">/</span></li>
+<li class="breadcrumb-item">
+    <a href="{{ url_for('dashboard.sandbox_detail', sandbox_id=sandbox.id) }}">{{ sandbox.id[:8] }}</a>
+</li>
+<li><span class="breadcrumb-separator" aria-hidden="true">/</span></li>
+<li class="breadcrumb-item">
+    <span class="breadcrumb-current">Audit Log</span>
+</li>
+{% endblock %}
+
+{% block content %}
+<div class="page-header flex items-center justify-between">
+    <div>
+        <h1 class="page-title">Activity Log</h1>
+        <p class="page-subtitle">
+            A record of every command run inside this sandbox.
+            <br>{{ sandbox.name }} &middot;
+            <span class="text-mono">{{ sandbox.id }}</span>
+            &middot; {{ total }} events
+        </p>
+    </div>
+    <div class="flex items-center gap-4" style="gap: var(--sp-3);">
+        <a href="{{ url_for('dashboard.sandbox_detail', sandbox_id=sandbox.id) }}" class="btn btn-secondary btn-sm">
+            Back to Sandbox
+        </a>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-6">
+    <div class="card-body">
+        <form class="filter-bar" method="get" action="{{ url_for('dashboard.audit_log', sandbox_id=sandbox.id) }}">
+            <div class="filter-group">
+                <label class="filter-label" for="type-filter">Event Type</label>
+                <select name="type" id="type-filter" class="form-select" onchange="this.form.submit()" aria-label="Filter by event type">
+                    <option value="">All events</option>
+                    {% for t in event_types %}
+                    <option value="{{ t }}" {% if t == current_type %}selected{% endif %}>{{ t }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label class="filter-label" for="per-page-select">Per Page</label>
+                <select name="per_page" id="per-page-select" class="form-select" onchange="this.form.submit()" aria-label="Results per page">
+                    {% for n in [50, 100, 200] %}
+                    <option value="{{ n }}" {% if n == per_page %}selected{% endif %}>{{ n }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            {% if current_type %}
+            <a href="{{ url_for('dashboard.audit_log', sandbox_id=sandbox.id) }}" class="btn btn-ghost btn-sm">
+                Clear Filters
+            </a>
+            {% endif %}
+
+            <noscript><button type="submit" class="btn btn-secondary btn-sm">Apply</button></noscript>
+        </form>
+    </div>
+</div>
+
+<!-- Audit Table -->
+{% if entries %}
+<div class="table-wrapper mb-4">
+    <table class="data-table" role="table" aria-label="Audit log entries">
+        <thead>
+            <tr>
+                <th scope="col">Timestamp</th>
+                <th scope="col">Action</th>
+                <th scope="col">Target</th>
+                <th scope="col">Outcome</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for entry in entries | reverse %}
+            <tr style="{% if entry.get('outcome') == 'blocked' %}background: var(--color-error-bg);{% elif entry.get('outcome') == 'error' %}background: var(--color-warning-bg);{% endif %}">
+                <td class="table-cell-mono" style="white-space: nowrap;">
+                    {{ entry.get('ts', '') | timeago }}
+                    <br>
+                    <span class="text-muted text-xs">{{ entry.get('ts', '')[:19] }}</span>
+                </td>
+                <td class="table-cell-mono">
+                    {{ entry.get('action', '') }}
+                </td>
+                <td class="table-cell-mono table-cell-truncate" title="{{ entry.get('target', '') }}">
+                    {{ entry.get('target', '') }}
+                </td>
+                <td>
+                    <span class="outcome-{{ entry.get('outcome', 'success') }} font-semibold">
+                        {{ entry.get('outcome', '') }}
+                    </span>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Pagination -->
+{% if total_pages > 1 %}
+<nav class="pagination" aria-label="Audit log pagination">
+    {% if page > 1 %}
+    <a href="{{ url_for('dashboard.audit_log', sandbox_id=sandbox.id, page=page-1, type=current_type, per_page=per_page) }}"
+       aria-label="Previous page">&laquo; Prev</a>
+    {% else %}
+    <span class="disabled">&laquo; Prev</span>
+    {% endif %}
+
+    {% for p in range(1, total_pages + 1) %}
+        {% if p == page %}
+        <span class="current" aria-current="page">{{ p }}</span>
+        {% elif p <= 3 or p >= total_pages - 2 or (p >= page - 1 and p <= page + 1) %}
+        <a href="{{ url_for('dashboard.audit_log', sandbox_id=sandbox.id, page=p, type=current_type, per_page=per_page) }}">{{ p }}</a>
+        {% elif p == 4 and page > 5 %}
+        <span class="disabled">&hellip;</span>
+        {% elif p == total_pages - 3 and page < total_pages - 4 %}
+        <span class="disabled">&hellip;</span>
+        {% endif %}
+    {% endfor %}
+
+    {% if page < total_pages %}
+    <a href="{{ url_for('dashboard.audit_log', sandbox_id=sandbox.id, page=page+1, type=current_type, per_page=per_page) }}"
+       aria-label="Next page">Next &raquo;</a>
+    {% else %}
+    <span class="disabled">Next &raquo;</span>
+    {% endif %}
+</nav>
+{% endif %}
+
+{% else %}
+<div class="card">
+    <div class="card-body">
+        <div class="empty-state">
+            <div class="empty-state-icon" aria-hidden="true">&#9998;</div>
+            <h3>No audit events</h3>
+            <p>
+                {% if current_type %}
+                No events of type "{{ current_type }}" found.
+                <a href="{{ url_for('dashboard.audit_log', sandbox_id=sandbox.id) }}">Clear filter</a>
+                {% else %}
+                No activity recorded yet. Events will appear here once the sandbox runs commands.
+                {% endif %}
+            </p>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

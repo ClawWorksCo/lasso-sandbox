@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}LASSO Dashboard{% endblock %}</title>
+
+    <!-- HTMX — bundled locally (no external CDN dependencies) -->
+    <script src="{{ url_for('static', filename='htmx.min.js') }}"></script>
+
+    <!-- Dashboard styles — extracted from base.html -->
+    <link rel="stylesheet" href="{{ url_for('dashboard.static', filename='style.css') }}">
+</head>
+<body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" role="status" aria-live="polite"></div>
+
+    <!-- Confirmation Dialog -->
+    <div class="confirm-dialog" id="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-title">
+        <div class="confirm-dialog-backdrop" onclick="closeConfirmDialog(false)"></div>
+        <div class="confirm-dialog-content">
+            <div class="confirm-dialog-icon" aria-hidden="true">&#9888;</div>
+            <div class="confirm-dialog-title" id="confirm-dialog-title">Are you sure?</div>
+            <div class="confirm-dialog-message" id="confirm-dialog-message">This action cannot be undone.</div>
+            <div class="confirm-dialog-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeConfirmDialog(false)" id="confirm-cancel-btn">Cancel</button>
+                <button type="button" class="btn btn-danger" onclick="closeConfirmDialog(true)" id="confirm-ok-btn">Stop Sandbox</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Keyboard Shortcuts Modal -->
+    <div class="shortcuts-modal" id="shortcuts-modal" role="dialog" aria-modal="true" aria-labelledby="shortcuts-modal-title">
+        <div class="shortcuts-modal-backdrop" onclick="toggleShortcutsModal()"></div>
+        <div class="shortcuts-modal-content">
+            <div class="shortcuts-modal-title" id="shortcuts-modal-title">
+                Keyboard Shortcuts
+                <button class="toast-dismiss" onclick="toggleShortcutsModal()" aria-label="Close">&times;</button>
+            </div>
+            <ul class="shortcut-list">
+                <li class="shortcut-item">
+                    <span>Toggle create sandbox wizard</span>
+                    <span class="shortcut-key">c</span>
+                </li>
+                <li class="shortcut-item">
+                    <span>Focus command input (terminal)</span>
+                    <span class="shortcut-key">/</span>
+                </li>
+                <li class="shortcut-item">
+                    <span>Close dialog / modal</span>
+                    <span class="shortcut-key">Esc</span>
+                </li>
+                <li class="shortcut-item">
+                    <span>Show this help</span>
+                    <span class="shortcut-key">?</span>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="layout">
+        <!-- Sidebar Overlay (mobile) -->
+        <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()" aria-hidden="true"></div>
+
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
+            <a href="{{ url_for('dashboard.index') }}" class="sidebar-brand">
+                <span class="brand-icon" aria-hidden="true">L</span>
+                <span class="brand-text">
+                    <span class="brand-name">LASSO</span>
+                    <span class="brand-sub">Security Orchestrator</span>
+                </span>
+            </a>
+
+            <!-- New Sandbox button -->
+            <div style="padding: var(--sp-3) var(--sp-4) 0;">
+                <a href="{{ url_for('dashboard.index') }}#create-sandbox"
+                   class="btn btn-primary btn-sm"
+                   style="width: 100%; text-align: center; display: block; padding: var(--sp-2) var(--sp-3); font-size: var(--text-sm); font-weight: 600;">
+                    + New Sandbox
+                </a>
+            </div>
+
+            <nav class="sidebar-nav">
+                <a href="{{ url_for('dashboard.index') }}"
+                   class="nav-item {% if request.path == '/' %}active{% endif %}"
+                   {% if request.path == '/' %}aria-current="page"{% endif %}>
+                    <span class="nav-icon" aria-hidden="true">&#9632;</span>
+                    Sandboxes
+                </a>
+                <a href="{{ url_for('dashboard.profiles_list') }}"
+                   class="nav-item {% if '/profiles' in request.path %}active{% endif %}"
+                   {% if '/profiles' in request.path %}aria-current="page"{% endif %}>
+                    <span class="nav-icon" aria-hidden="true">&#9881;</span>
+                    Sandbox Rules
+                </a>
+                <a href="{{ url_for('dashboard.system_check') }}"
+                   class="nav-item {% if '/check' in request.path %}active{% endif %}"
+                   {% if '/check' in request.path %}aria-current="page"{% endif %}>
+                    <span class="nav-icon" aria-hidden="true">&#9874;</span>
+                    System Health
+                </a>
+            </nav>
+
+            <div class="sidebar-footer" style="display: flex; align-items: center; justify-content: space-between;">
+                <span class="version-badge">v{{ version }}</span>
+                <button class="shortcuts-help-btn" onclick="toggleShortcutsModal()" title="Keyboard shortcuts (?)" type="button" aria-label="Show keyboard shortcuts">?</button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <div class="main-wrapper">
+            <!-- Top Header Bar -->
+            <header class="topbar">
+                <div class="topbar-left">
+                    <button class="sidebar-toggle" onclick="toggleSidebar()" aria-label="Toggle sidebar navigation" type="button">
+                        &#9776;
+                    </button>
+                    <nav aria-label="Breadcrumb">
+                        <ol class="breadcrumb">
+                            {% block breadcrumb %}
+                            <li class="breadcrumb-item">
+                                <span class="breadcrumb-current">Sandboxes</span>
+                            </li>
+                            {% endblock %}
+                        </ol>
+                    </nav>
+                </div>
+                <div class="topbar-right">
+                    <span class="topbar-indicator htmx-indicator" id="global-indicator">
+                        <span class="spinner"></span>
+                        <span>Updating</span>
+                    </span>
+                    <span class="topbar-indicator">
+                        <span class="pulse-dot" aria-hidden="true"></span>
+                        <span>Live</span>
+                    </span>
+                </div>
+            </header>
+
+            <!-- Page Content -->
+            <main class="page-content" id="main-content">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                        <div class="flash-message flash-{{ category }}" role="alert">
+                            <span class="flash-message-text">{{ message }}</span>
+                            <button type="button" class="flash-dismiss" onclick="this.parentElement.remove()" aria-label="Dismiss">&times;</button>
+                        </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+                {% block content %}{% endblock %}
+            </main>
+
+            <!-- Footer removed for simplicity -->
+        </div>
+    </div>
+
+    <!-- Directory Browser Modal -->
+    <div id="dir-browser-modal" class="dir-modal" style="display:none;">
+        <div class="dir-modal-content">
+            <div class="dir-modal-header">
+                <h3>Select Directory</h3>
+                <button onclick="closeBrowser()" class="btn-close-modal">&times;</button>
+            </div>
+            <div class="dir-modal-body">
+                <div id="dir-browser-bookmarks" style="display:flex; gap:var(--sp-2); flex-wrap:wrap; margin-bottom:var(--sp-3); padding-bottom:var(--sp-3); border-bottom:1px solid var(--border-subtle);"></div>
+                <div id="dir-browser-path" style="font-family:var(--font-mono); font-size:var(--text-sm); color:var(--text-secondary); margin-bottom:var(--sp-3); word-break:break-all;"></div>
+                <div id="dir-browser-list" style="max-height:350px; overflow-y:auto;"></div>
+            </div>
+            <div class="dir-modal-footer">
+                <button onclick="closeBrowser()" class="btn btn-ghost">Cancel</button>
+                <button onclick="selectCurrentDir()" class="btn btn-primary">Select This Directory</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dashboard JavaScript — extracted from base.html -->
+    <script src="{{ url_for('dashboard.static', filename='app.js') }}"></script>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

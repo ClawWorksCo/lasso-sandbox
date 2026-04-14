@@ -1,0 +1,508 @@
+{% extends "base.html" %}
+{% block title %}LASSO — New Profile{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item">
+    <a href="{{ url_for('dashboard.profiles_list') }}">Sandbox Rules</a>
+</li>
+<li><span class="breadcrumb-separator" aria-hidden="true">/</span></li>
+<li class="breadcrumb-item">
+    <span class="breadcrumb-current">New Profile</span>
+</li>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Create New Profile</h1>
+    <p class="page-subtitle">Set up a new sandbox security policy in three steps</p>
+</div>
+
+{% if error %}
+<div class="alert alert-error mb-6" role="alert">
+    <strong>Error:</strong> {{ error }}
+</div>
+{% endif %}
+
+<!-- Step indicator -->
+<div class="wizard-steps mb-6">
+    <div class="wizard-step active" id="step-ind-1">
+        <span class="wizard-step-number">1</span>
+        <span class="wizard-step-label">Choose a Base</span>
+    </div>
+    <div class="wizard-step-connector"></div>
+    <div class="wizard-step" id="step-ind-2">
+        <span class="wizard-step-number">2</span>
+        <span class="wizard-step-label">Name & Describe</span>
+    </div>
+    <div class="wizard-step-connector"></div>
+    <div class="wizard-step" id="step-ind-3">
+        <span class="wizard-step-number">3</span>
+        <span class="wizard-step-label">Customize & Save</span>
+    </div>
+</div>
+
+<form method="POST" action="{{ url_for('dashboard.profile_create') }}" id="new-profile-form">
+    {{ csrf_token() }}
+
+    <!-- Step 1: Choose a base -->
+    <div class="wizard-panel active" id="step-1">
+        <div class="card">
+            <div class="card-header">
+                <h3>Step 1: Choose a Starting Point</h3>
+            </div>
+            <div class="card-body">
+                <p class="text-secondary text-sm mb-6">Pick a base profile to start from. You can customize everything in the next step.</p>
+
+                <div class="base-cards">
+                    <label class="base-card" tabindex="0">
+                        <input type="radio" name="base_profile" value="strict" class="sr-only">
+                        <div class="base-card-inner">
+                            <div class="base-card-icon" style="color: var(--color-success);">&#128737;</div>
+                            <h4>Strict</h4>
+                            <p class="text-secondary text-sm">Maximum security. No network, PII protection, full audit trail. Best for regulated environments.</p>
+                            <div class="base-card-meta">
+                                <span class="tag">offline</span>
+                                <span class="tag">compliance</span>
+                            </div>
+                        </div>
+                    </label>
+
+                    <label class="base-card" tabindex="0">
+                        <input type="radio" name="base_profile" value="standard" class="sr-only" checked>
+                        <div class="base-card-inner">
+                            <div class="base-card-icon" style="color: var(--color-warning);">&#128736;</div>
+                            <h4>Standard</h4>
+                            <p class="text-secondary text-sm">Balanced for coding. Dev tools enabled, restricted network for package managers.</p>
+                            <div class="base-card-meta">
+                                <span class="tag">development</span>
+                                <span class="tag">coding</span>
+                            </div>
+                        </div>
+                    </label>
+
+                    <label class="base-card" tabindex="0">
+                        <input type="radio" name="base_profile" value="evaluation" class="sr-only">
+                        <div class="base-card-inner">
+                            <div class="base-card-icon" style="color: var(--color-info);">&#128274;</div>
+                            <h4>Evaluation</h4>
+                            <p class="text-secondary text-sm">Bare minimum. Read-only commands, no network, low resources. Good for untrusted agents.</p>
+                            <div class="base-card-meta">
+                                <span class="tag">secure</span>
+                                <span class="tag">offline</span>
+                            </div>
+                        </div>
+                    </label>
+
+                    <label class="base-card" tabindex="0">
+                        <input type="radio" name="base_profile" value="" class="sr-only">
+                        <div class="base-card-inner">
+                            <div class="base-card-icon" style="color: var(--text-tertiary);">&#128196;</div>
+                            <h4>Blank</h4>
+                            <p class="text-secondary text-sm">Start from scratch with default settings. Full control over every option.</p>
+                            <div class="base-card-meta">
+                                <span class="tag">custom</span>
+                            </div>
+                        </div>
+                    </label>
+                </div>
+
+                <div class="form-actions" style="justify-content: flex-end;">
+                    <button type="button" class="btn btn-primary" onclick="nextStep(2)">Next: Name Your Profile</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 2: Name and describe -->
+    <div class="wizard-panel" id="step-2">
+        <div class="card">
+            <div class="card-header">
+                <h3>Step 2: Name Your Profile</h3>
+            </div>
+            <div class="card-body">
+                <p class="text-secondary text-sm mb-4">Give your profile a clear name so your team knows when to use it.</p>
+
+                <div class="form-group mb-4">
+                    <label class="form-label" for="new-name">Profile Name</label>
+                    <input type="text" id="new-name" name="name" class="form-input"
+                           placeholder="e.g. frontend-team, data-analysis, ci-runner"
+                           pattern="[a-zA-Z0-9_-]+"
+                           title="Letters, numbers, hyphens, and underscores only"
+                           required>
+                    <p class="form-hint">Use lowercase with hyphens. This cannot be changed later.</p>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="new-description">Description</label>
+                    <textarea id="new-description" name="description" class="form-input" rows="3"
+                              placeholder="What is this profile for? Who should use it?"></textarea>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="prevStep(1)">Back</button>
+                    <button type="button" class="btn btn-primary" onclick="nextStep(3)">Next: Customize Settings</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 3: Customize and save -->
+    <div class="wizard-panel" id="step-3">
+        <!-- Commands -->
+        <div class="card mb-6">
+            <div class="card-header">
+                <h3>Step 3: Customize Settings</h3>
+            </div>
+            <div class="card-body">
+                <p class="text-secondary text-sm mb-4">These are pre-filled from your chosen base. Adjust as needed.</p>
+
+                <h4 style="margin-bottom: var(--sp-3);">Command Filter Mode</h4>
+                <div class="radio-group mb-4">
+                    <label class="radio-option">
+                        <input type="radio" name="cmd_mode" value="whitelist" checked>
+                        <span class="radio-label">
+                            <strong>Allowed list</strong>
+                            <span class="text-secondary text-sm">Only checked commands can run.</span>
+                        </span>
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" name="cmd_mode" value="blacklist">
+                        <span class="radio-label">
+                            <strong>Blocked list</strong>
+                            <span class="text-secondary text-sm">All commands can run except the ones you check.</span>
+                        </span>
+                    </label>
+                </div>
+
+                <h4 style="margin-bottom: var(--sp-3);">Commands</h4>
+                <div class="cmd-category">
+                    <h4 class="cmd-category-title">Core</h4>
+                    <div class="checkbox-grid">
+                        {% for cmd in ['ls', 'cat', 'head', 'tail', 'grep', 'find', 'wc', 'sort', 'diff', 'echo', 'test'] %}
+                        <label class="checkbox-option">
+                            <input type="checkbox" name="commands" value="{{ cmd }}" checked>
+                            <code>{{ cmd }}</code>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="cmd-category">
+                    <h4 class="cmd-category-title">Development</h4>
+                    <div class="checkbox-grid">
+                        {% for cmd in ['python3', 'pip', 'git', 'node', 'npm', 'make', 'cargo', 'go'] %}
+                        <label class="checkbox-option">
+                            <input type="checkbox" name="commands" value="{{ cmd }}">
+                            <code>{{ cmd }}</code>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="cmd-category">
+                    <h4 class="cmd-category-title">Network
+                        <span class="badge-inline badge-warning-inline">use with caution</span>
+                    </h4>
+                    <div class="checkbox-grid">
+                        {% for cmd in ['curl', 'wget'] %}
+                        <label class="checkbox-option">
+                            <input type="checkbox" name="commands" value="{{ cmd }}">
+                            <code>{{ cmd }}</code>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="form-group mt-4 mb-4">
+                    <label class="form-label" for="new-extra-commands">Additional Commands</label>
+                    <input type="text" id="new-extra-commands" name="extra_commands" class="form-input"
+                           placeholder="e.g. rustc, cmake (comma-separated)">
+                </div>
+
+                <label class="checkbox-option mb-4">
+                    <input type="checkbox" name="allow_shell_operators" value="1">
+                    <span><strong>Allow shell operators</strong> (pipes, redirects, subshells)</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- Network -->
+        <div class="card mb-6">
+            <div class="card-header">
+                <h3>Network Access</h3>
+            </div>
+            <div class="card-body">
+                <div class="radio-group mb-4">
+                    <label class="radio-option">
+                        <input type="radio" name="net_mode" value="none" onchange="toggleNewNetOpts()">
+                        <span class="radio-label">
+                            <strong>Offline</strong>
+                            <span class="text-success text-sm">No internet. Safest.</span>
+                        </span>
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" name="net_mode" value="restricted" checked onchange="toggleNewNetOpts()">
+                        <span class="radio-label">
+                            <strong>Limited</strong>
+                            <span class="text-warning text-sm">Specific domains only.</span>
+                        </span>
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" name="net_mode" value="full" onchange="toggleNewNetOpts()">
+                        <span class="radio-label">
+                            <strong>Full</strong>
+                            <span class="text-error text-sm">Unrestricted. Not recommended.</span>
+                        </span>
+                    </label>
+                </div>
+
+                <div id="new-network-options">
+                    <div class="form-group">
+                        <label class="form-label">Allowed Domains</label>
+                        <div class="tag-input-container" id="new-domain-container">
+                            <div class="tag-list" id="new-domain-tags"></div>
+                            <input type="text" id="new-domain-input" class="tag-text-input"
+                                   placeholder="Type a domain and press Enter"
+                                   onkeydown="handleNewTagInput(event)">
+                        </div>
+                        <input type="hidden" name="allowed_domains" id="new-allowed-domains-hidden" value="">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Resources -->
+        <div class="card mb-6">
+            <div class="card-header">
+                <h3>Resource Limits</h3>
+            </div>
+            <div class="card-body">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label class="form-label" for="new-memory">
+                            Memory: <strong id="new-memory-value">4096MB</strong>
+                        </label>
+                        <input type="range" id="new-memory" name="max_memory_mb" class="form-range"
+                               min="512" max="16384" step="256" value="4096"
+                               oninput="document.getElementById('new-memory-value').textContent = this.value + 'MB'">
+                        <div class="range-labels"><span>512MB</span><span>16GB</span></div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="new-cpu">
+                            CPU: <strong id="new-cpu-value">50%</strong>
+                        </label>
+                        <input type="range" id="new-cpu" name="max_cpu_percent" class="form-range"
+                               min="10" max="100" step="5" value="50"
+                               oninput="document.getElementById('new-cpu-value').textContent = this.value + '%'">
+                        <div class="range-labels"><span>10%</span><span>100%</span></div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="new-pids">Max Processes</label>
+                        <input type="number" id="new-pids" name="max_pids" class="form-input"
+                               value="100" min="1" max="1000">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Audit -->
+        <div class="card mb-6">
+            <div class="card-header">
+                <h3>Audit Settings</h3>
+            </div>
+            <div class="card-body">
+                <div class="toggle-grid">
+                    <label class="toggle-option">
+                        <span class="toggle-text">
+                            <strong>Enable audit logging</strong>
+                            <span class="text-secondary text-sm">Record all sandbox activity</span>
+                        </span>
+                        <input type="checkbox" name="audit_enabled" value="1" checked class="toggle-input">
+                        <span class="toggle-switch" aria-hidden="true"></span>
+                    </label>
+                    <label class="toggle-option">
+                        <span class="toggle-text">
+                            <strong>Log command output</strong>
+                            <span class="text-secondary text-sm">Save stdout/stderr</span>
+                        </span>
+                        <input type="checkbox" name="audit_command_output" value="1" class="toggle-input">
+                        <span class="toggle-switch" aria-hidden="true"></span>
+                    </label>
+                    <label class="toggle-option">
+                        <span class="toggle-text">
+                            <strong>Log file diffs</strong>
+                            <span class="text-secondary text-sm">Record file changes</span>
+                        </span>
+                        <input type="checkbox" name="audit_file_diffs" value="1" checked class="toggle-input">
+                        <span class="toggle-switch" aria-hidden="true"></span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="button" class="btn btn-secondary" onclick="prevStep(2)">Back</button>
+            <button type="submit" class="btn btn-primary">Create Profile</button>
+        </div>
+    </div>
+</form>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+var currentStep = 1;
+
+// Default commands for each base profile (from defaults.py)
+var baseProfileDefaults = {
+    'strict': {
+        commands: ['ls', 'cat', 'head', 'tail', 'grep', 'find', 'wc', 'sort', 'diff', 'echo', 'test',
+                   'python3', 'pip', 'git'],
+        cmdMode: 'whitelist',
+        netMode: 'none',
+        shellOperators: false
+    },
+    'standard': {
+        commands: ['ls', 'cat', 'head', 'tail', 'grep', 'find', 'wc', 'sort', 'diff', 'echo', 'test',
+                   'python3', 'pip', 'git', 'node', 'npm', 'make', 'cargo', 'go', 'curl', 'wget'],
+        cmdMode: 'whitelist',
+        netMode: 'restricted',
+        shellOperators: true
+    },
+    'evaluation': {
+        commands: ['ls', 'cat', 'head', 'tail', 'grep', 'wc', 'echo', 'test'],
+        cmdMode: 'whitelist',
+        netMode: 'none',
+        shellOperators: false
+    },
+    '': {
+        commands: ['ls', 'cat', 'head', 'tail', 'grep', 'find', 'wc', 'sort', 'diff', 'echo', 'test'],
+        cmdMode: 'whitelist',
+        netMode: 'restricted',
+        shellOperators: false
+    }
+};
+
+function applyBaseDefaults(baseValue) {
+    var defaults = baseProfileDefaults[baseValue];
+    if (!defaults) return;
+
+    // Update command checkboxes
+    document.querySelectorAll('#step-3 input[name="commands"]').forEach(function(cb) {
+        cb.checked = defaults.commands.indexOf(cb.value) !== -1;
+    });
+
+    // Update command mode radio
+    var modeRadio = document.querySelector('#step-3 input[name="cmd_mode"][value="' + defaults.cmdMode + '"]');
+    if (modeRadio) modeRadio.checked = true;
+
+    // Update network mode radio
+    var netRadio = document.querySelector('#step-3 input[name="net_mode"][value="' + defaults.netMode + '"]');
+    if (netRadio) netRadio.checked = true;
+    toggleNewNetOpts();
+
+    // Update shell operators checkbox
+    var shellOp = document.querySelector('#step-3 input[name="allow_shell_operators"]');
+    if (shellOp) shellOp.checked = defaults.shellOperators;
+}
+
+function nextStep(step) {
+    // Validate step 2 name field
+    if (step === 3) {
+        var nameInput = document.getElementById('new-name');
+        if (!nameInput.value.trim()) {
+            nameInput.focus();
+            nameInput.reportValidity();
+            return;
+        }
+    }
+    showStep(step);
+}
+
+function prevStep(step) {
+    showStep(step);
+}
+
+function showStep(step) {
+    // Hide all panels
+    document.querySelectorAll('.wizard-panel').forEach(function(p) {
+        p.classList.remove('active');
+    });
+    document.querySelectorAll('.wizard-step').forEach(function(s) {
+        s.classList.remove('active');
+        s.classList.remove('completed');
+    });
+
+    // Show target panel
+    document.getElementById('step-' + step).classList.add('active');
+
+    // Update step indicators
+    for (var i = 1; i <= 3; i++) {
+        var ind = document.getElementById('step-ind-' + i);
+        if (i < step) {
+            ind.classList.add('completed');
+        } else if (i === step) {
+            ind.classList.add('active');
+        }
+    }
+    currentStep = step;
+}
+
+// Base card selection visual feedback
+document.querySelectorAll('.base-card input[type="radio"]').forEach(function(radio) {
+    radio.addEventListener('change', function() {
+        document.querySelectorAll('.base-card').forEach(function(c) {
+            c.classList.remove('selected');
+        });
+        if (this.checked) {
+            this.closest('.base-card').classList.add('selected');
+            applyBaseDefaults(this.value);
+        }
+    });
+});
+// Initialize selection state and apply defaults for pre-selected base
+var checkedBase = document.querySelector('.base-card input[type="radio"]:checked');
+if (checkedBase) {
+    checkedBase.closest('.base-card').classList.add('selected');
+    applyBaseDefaults(checkedBase.value);
+}
+
+function toggleNewNetOpts() {
+    var mode = document.querySelector('#step-3 input[name="net_mode"]:checked').value;
+    document.getElementById('new-network-options').style.display = (mode === 'none') ? 'none' : '';
+}
+
+function handleNewTagInput(event) {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    var input = event.target;
+    var value = input.value.trim();
+    if (!value) return;
+
+    var tagsContainer = document.getElementById('new-domain-tags');
+    var tag = document.createElement('span');
+    tag.className = 'editable-tag';
+    tag.onclick = function() { this.remove(); updateNewHiddenDomains(); };
+    tag.textContent = value + ' ';
+    var removeBtn = document.createElement('span');
+    removeBtn.className = 'tag-remove';
+    removeBtn.textContent = '\u00d7';
+    tag.appendChild(removeBtn);
+    tagsContainer.appendChild(tag);
+    updateNewHiddenDomains();
+    input.value = '';
+}
+
+function updateNewHiddenDomains() {
+    var tags = document.querySelectorAll('#new-domain-tags .editable-tag');
+    var domains = [];
+    tags.forEach(function(tag) {
+        var text = tag.childNodes[0].textContent.trim();
+        if (text) domains.push(text);
+    });
+    document.getElementById('new-allowed-domains-hidden').value = domains.join(',');
+}
+
+document.getElementById('new-profile-form').addEventListener('submit', function() {
+    updateNewHiddenDomains();
+});
+</script>
+{% endblock %}

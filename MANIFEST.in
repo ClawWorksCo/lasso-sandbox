@@ -1,0 +1,16 @@
+include LICENSE
+include CHANGELOG.md
+include README.md
+recursive-include lasso/dashboard/templates *.html
+recursive-include lasso/dashboard/static *.js *.css
+include lasso/agents/plugins/*.js
+include lasso/py.typed
+recursive-include lasso/profiles *.toml
+recursive-include profiles *.toml *.md
+exclude CLAUDE.md
+exclude TODO.md
+exclude REVIEWERS.md
+exclude demo.py
+recursive-exclude presentation *
+recursive-exclude research *
+recursive-exclude tests *

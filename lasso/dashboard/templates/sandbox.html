@@ -1,0 +1,479 @@
+{% extends "base.html" %}
+{% block title %}LASSO — Sandbox {{ sandbox.id }}{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item">
+    <a href="{{ url_for('dashboard.index') }}">Sandboxes</a>
+</li>
+<li><span class="breadcrumb-separator" aria-hidden="true">/</span></li>
+<li class="breadcrumb-item">
+    <span class="breadcrumb-current">{{ sandbox.name }}</span>
+</li>
+{% endblock %}
+
+{% block content %}
+<!-- Connect Card (most prominent when running) -->
+{% if sandbox.state == 'running' %}
+<div class="card mb-6" style="border-color: var(--brand-primary-border); background: var(--brand-primary-bg);">
+    <div class="card-body" style="padding: var(--sp-6);">
+        <h2 style="margin: 0 0 var(--sp-3) 0; font-size: var(--text-xl); color: var(--text-primary);">Connect to Your Sandbox</h2>
+        {% if agent %}
+        <p style="margin: 0 0 var(--sp-4) 0; font-size: var(--text-base); color: var(--text-secondary);">{{ agent }} is installed and ready. Open a terminal and paste the command below:</p>
+        {% else %}
+        <p style="margin: 0 0 var(--sp-4) 0; font-size: var(--text-base); color: var(--text-secondary);">Open a terminal (Command Prompt on Windows, Terminal on Mac/Linux) and paste the command below:</p>
+        {% endif %}
+        <div style="display: flex; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-3);">
+            <form method="POST" action="{{ url_for('dashboard.open_terminal', sandbox_id=sandbox.id) }}" style="margin:0;">
+                {{ csrf_token() }}
+                <button type="submit" class="btn btn-primary" style="padding: var(--sp-3) var(--sp-5); font-size: var(--text-md);">
+                    &#9654; Open Terminal
+                </button>
+            </form>
+            <span style="color: var(--text-muted); font-size: var(--text-sm);">or copy the command:</span>
+            <code id="connect-cmd" style="flex: 1; display: block; padding: var(--sp-2) var(--sp-3); background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: var(--radius-md); font-family: var(--font-mono); font-size: var(--text-sm); color: var(--brand-accent); user-select: all;">lasso attach {{ sandbox.id }}</code>
+            <button type="button" class="btn btn-ghost btn-sm"
+                    onclick="navigator.clipboard.writeText(document.getElementById('connect-cmd').textContent.trim()); this.textContent='Copied!'; setTimeout(() => this.textContent='Copy', 1500);">
+                Copy
+            </button>
+        </div>
+        {% if agent_command %}
+        <p style="margin: 0; font-size: var(--text-sm); color: var(--text-muted);">
+            Once inside, type <code style="font-family: var(--font-mono); color: var(--text-secondary); background: var(--bg-elevated); padding: 2px 6px; border-radius: 3px;">{{ agent_command }}</code> to start coding.
+        </p>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Sandbox Header -->
+<div class="card mb-6">
+    <div class="card-header">
+        <h3>
+            <span class="badge badge-{{ sandbox.state }}">
+                <span class="badge-dot" aria-hidden="true"></span>
+                {{ sandbox.state | upper }}
+            </span>
+            <span style="margin-left: var(--sp-2);">{{ sandbox.name }}</span>
+            <span class="badge badge-net-{{ sandbox.network_mode }}" style="margin-left: var(--sp-2);">
+                {% if sandbox.network_mode == 'none' %}&#128274;{% elif sandbox.network_mode == 'restricted' %}&#9888;{% else %}&#127760;{% endif %}
+                {% if sandbox.network_mode == 'none' %}OFFLINE{% elif sandbox.network_mode == 'restricted' %}LIMITED{% else %}NET: {{ sandbox.network_mode | upper }}{% endif %}
+            </span>
+        </h3>
+        <div class="flex items-center gap-4" style="gap: var(--sp-3);">
+            <a href="{{ url_for('dashboard.audit_log', sandbox_id=sandbox.id) }}" class="btn btn-secondary btn-sm">
+                View Full Audit
+            </a>
+            {% if sandbox.state == 'running' %}
+            <form method="post" action="{{ url_for('dashboard.sandbox_stop', sandbox_id=sandbox.id) }}" style="margin: 0;"
+                  onsubmit="return confirmStop(this, '{{ sandbox.name }}');">
+                {{ csrf_token() }}
+                <button type="submit" class="btn btn-danger btn-sm">
+                    Stop Sandbox
+                </button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Status Details (auto-refreshing) -->
+    <div class="card-body"
+         id="sandbox-status-area"
+         aria-live="polite"
+         hx-get="{{ url_for('dashboard.partial_sandbox_status', sandbox_id=sandbox.id) }}"
+         hx-trigger="every 5s"
+         hx-swap="innerHTML">
+        {% include "partials/sandbox_status.html" %}
+    </div>
+</div>
+
+<!-- What the Agent Can Do -->
+<div class="card mb-6">
+    <div class="card-header">
+        <h3><span class="card-header-icon" aria-hidden="true">&#9881;</span> What the AI can do</h3>
+    </div>
+    <div class="card-body">
+        <div class="detail-grid" style="grid-template-columns: 1fr 1fr;">
+            <div class="detail-item">
+                <div class="detail-label">Command filter</div>
+                <div class="detail-value font-semibold">{% if policy.mode == 'whitelist' %}Allowed list only{% elif policy.mode == 'blacklist' %}Blocked list{% else %}{{ policy.mode }}{% endif %}</div>
+            </div>
+            <div class="detail-item">
+                <div class="detail-label">Command chaining (pipes, redirects)</div>
+                <div class="detail-value">
+                    {% if policy.shell_operators %}
+                    <span class="text-warning font-semibold">Allowed</span> &mdash; commands can use |, >, $() to chain operations
+                    {% else %}
+                    <span class="text-success font-semibold">Blocked</span> &mdash; each command runs independently
+                    {% endif %}
+                </div>
+            </div>
+            <div class="detail-item">
+                <div class="detail-label">Max Execution</div>
+                <div class="detail-value">{{ policy.max_seconds }}s</div>
+            </div>
+        </div>
+
+        {% if policy.mode == 'whitelist' and policy.allowed_commands is not string %}
+        <div style="margin-top: var(--sp-4); padding-top: var(--sp-4); border-top: 1px solid var(--border-subtle);">
+            <div class="detail-label" style="margin-bottom: var(--sp-2);">Allowed commands ({{ policy.allowed_commands | length }}) &mdash; only these can run</div>
+            <div class="cmd-list">
+                {% for cmd in policy.allowed_commands[:15] %}
+                <span class="cmd-tag">{{ cmd }}</span>
+                {% endfor %}
+                {% if policy.allowed_commands | length > 15 %}
+                <span class="cmd-tag" style="opacity: 0.5;">+{{ policy.allowed_commands | length - 15 }} more</span>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if policy.blocked_args %}
+        <details class="collapsible">
+            <summary>Blocked argument patterns &mdash; these flags are never allowed</summary>
+            <div class="collapsible-content">
+                {% for cmd, patterns in policy.blocked_args.items() %}
+                <div class="mb-2">
+                    <code>{{ cmd }}</code>:
+                    {% for pattern in patterns %}
+                    <span class="cmd-tag blocked">{{ pattern }}</span>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+            </div>
+        </details>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Quick Command (collapsed by default) -->
+{% if sandbox.state == 'running' %}
+<div class="card mb-6">
+    <div class="card-body">
+        <details id="quick-command-details" open>
+            <summary style="cursor: pointer; font-weight: 600; font-size: var(--text-md); color: var(--text-primary); padding: var(--sp-2) 0;">Run a quick command</summary>
+            <div style="margin-top: var(--sp-4);">
+                <div class="terminal">
+                    <div class="terminal-header">
+                        <span class="text-xs text-muted">sandbox@{{ sandbox.id[:8] }}</span>
+                    </div>
+                    <div class="terminal-toolbar">
+                        <button type="button" class="terminal-toolbar-btn" onclick="document.getElementById('exec-history').innerHTML = ''; showToast('Terminal cleared', 'info', 1500);" aria-label="Clear terminal">Clear</button>
+                    </div>
+                    <div class="terminal-body" id="exec-history" role="log" aria-label="Command execution history">
+                        <div class="text-xs text-muted" style="padding-bottom: var(--sp-2); border-bottom: 1px solid var(--border-subtle); margin-bottom: var(--sp-2);">
+                            {{ sandbox.command_mode }} mode &middot; For full terminal access, use <code style="font-family: var(--font-mono); font-size: var(--text-xs); color: var(--text-secondary);">lasso attach</code> above
+                        </div>
+                    </div>
+                    <form class="exec-form"
+                          hx-post="{{ url_for('dashboard.sandbox_exec', sandbox_id=sandbox.id) }}"
+                          hx-target="#exec-history"
+                          hx-swap="beforeend scroll:#exec-history:bottom"
+                          hx-on::after-request="this.querySelector('input[name=command]').value = ''"
+                          hx-disabled-elt="find button"
+                          hx-indicator="find .htmx-indicator">
+                        {{ csrf_token() }}
+                        <span class="exec-prompt-symbol" aria-hidden="true">$</span>
+                        <label for="exec-command" class="sr-only" style="position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0);">Command</label>
+                        <input type="text"
+                               id="exec-command"
+                               name="command"
+                               class="exec-input"
+                               placeholder="Type a command to run inside the sandbox"
+                               autocomplete="off"
+                               aria-label="Command to execute">
+                        <button type="submit" class="btn btn-primary btn-sm">
+                            <span class="exec-run-btn-text">Run</span>
+                            <span class="htmx-indicator" style="gap: 4px;"><span class="spinner"></span></span>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </details>
+    </div>
+</div>
+{% endif %}
+
+<!-- Security Controls: Internet Access + Filesystem Isolation -->
+<div class="grid-2 mb-6">
+    <!-- Internet Access -->
+    <div class="card">
+        <div class="card-header">
+            <h3><span class="card-header-icon" aria-hidden="true">&#127760;</span> Internet Access</h3>
+            <span class="badge badge-net-{{ sandbox.network.mode }}">
+                {% if sandbox.network.mode == 'none' %}&#128274; Offline{% elif sandbox.network.mode == 'restricted' %}&#9888; Limited{% else %}&#127760; {{ sandbox.network.mode | upper }}{% endif %}
+            </span>
+        </div>
+        <div class="card-body">
+            <!-- Network mode indicator -->
+            {% if sandbox.network.mode == 'none' %}
+            <div class="security-indicator secure mb-4">
+                <span class="security-indicator-icon" aria-hidden="true">&#128274;</span>
+                <span><strong>Offline (fully isolated)</strong> &mdash; this sandbox cannot reach any external hosts.</span>
+            </div>
+            {% elif sandbox.network.mode == 'restricted' %}
+            <div class="security-indicator warning mb-4">
+                <span class="security-indicator-icon" aria-hidden="true">&#9888;</span>
+                <span><strong>Limited (package registries only)</strong> &mdash; only explicitly allowed domains and ports.</span>
+            </div>
+            {% else %}
+            <div class="security-indicator danger mb-4">
+                <span class="security-indicator-icon" aria-hidden="true">&#127760;</span>
+                <span>Internet access is <strong>unrestricted</strong>. Blocked ports and CIDRs still apply.</span>
+            </div>
+            {% endif %}
+
+            <!-- Blocked Database Ports -->
+            {% if sandbox.network.blocked_ports %}
+            <details class="collapsible" open>
+                <summary>Blocked Database Ports ({{ sandbox.network.blocked_ports | length }})</summary>
+                <div class="collapsible-content">
+                    <div class="cmd-list">
+                        {% for port in sandbox.network.blocked_ports %}
+                        <span class="port-tag">
+                            &#128683; {{ port }} &mdash; {{ sandbox.network.blocked_ports_named[port] }}
+                        </span>
+                        {% endfor %}
+                    </div>
+                    <p class="text-xs text-muted mt-4" style="margin-top: var(--sp-3);">
+                        Database ports are blocked in ALL network modes (including full). Direct database connections are never permitted.
+                    </p>
+                </div>
+            </details>
+            {% endif %}
+
+            <!-- Blocked CIDRs -->
+            {% if sandbox.network.blocked_cidrs %}
+            <details class="collapsible">
+                <summary>Blocked Network Ranges ({{ sandbox.network.blocked_cidrs | length }})</summary>
+                <div class="collapsible-content">
+                    <div class="cmd-list">
+                        {% for cidr in sandbox.network.blocked_cidrs %}
+                        <span class="cidr-tag">
+                            {% if cidr.startswith('10.') %}Internal network (10.x.x.x)
+                            {% elif cidr.startswith('172.16.') or cidr.startswith('172.17.') or cidr.startswith('172.18.') or cidr.startswith('172.19.') or cidr.startswith('172.2') or cidr.startswith('172.3') %}Docker/internal network (172.x.x.x)
+                            {% elif cidr.startswith('192.168.') %}Local network (192.168.x.x)
+                            {% elif cidr.startswith('169.254.') %}Cloud metadata (169.254.x.x)
+                            {% elif cidr.startswith('127.') %}Localhost (127.x.x.x)
+                            {% else %}{{ cidr }}
+                            {% endif %}
+                        </span>
+                        {% endfor %}
+                    </div>
+                </div>
+            </details>
+            {% endif %}
+
+            <!-- Allowed Domains (restricted mode) -->
+            {% if sandbox.network.mode == 'restricted' and sandbox.network.allowed_domains %}
+            <details class="collapsible">
+                <summary>Allowed Domains ({{ sandbox.network.allowed_domains | length }})</summary>
+                <div class="collapsible-content">
+                    <div class="cmd-list">
+                        {% for domain in sandbox.network.allowed_domains %}
+                        <span class="cmd-tag">{{ domain }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+            </details>
+            {% endif %}
+
+            <!-- Allowed Ports (restricted mode) -->
+            {% if sandbox.network.mode == 'restricted' and sandbox.network.allowed_ports %}
+            <details class="collapsible">
+                <summary>Allowed Outbound Ports</summary>
+                <div class="collapsible-content">
+                    <div class="cmd-list">
+                        {% for port in sandbox.network.allowed_ports %}
+                        <span class="cmd-tag">{{ port }}{% if port == 80 %} (HTTP){% elif port == 443 %} (HTTPS){% endif %}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+            </details>
+            {% endif %}
+
+        </div>
+    </div>
+
+    <!-- Filesystem Isolation + Audit Status stacked -->
+    <div class="flex flex-col gap-4" style="gap: var(--sp-4);">
+        <!-- Filesystem Isolation -->
+        <div class="card">
+            <div class="card-header">
+                <h3><span class="card-header-icon" aria-hidden="true">&#128193;</span> Filesystem Isolation</h3>
+            </div>
+            <div class="card-body">
+                <div class="detail-grid" style="grid-template-columns: 1fr 1fr;">
+                    <div class="detail-item">
+                        <div class="detail-label">Working Directory</div>
+                        <div class="detail-value mono text-sm" style="word-break: break-all;">{{ sandbox.filesystem.working_dir }}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Disk Limit</div>
+                        <div class="detail-value">{{ sandbox.filesystem.max_disk_mb }} MB</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Temp Dir Size</div>
+                        <div class="detail-value">{{ sandbox.filesystem.temp_dir_mb }} MB</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Hidden Paths</div>
+                        <div class="detail-value">{{ sandbox.filesystem.hidden_paths | length }} path(s) hidden</div>
+                    </div>
+                </div>
+
+                {% if sandbox.filesystem.hidden_paths %}
+                <details class="collapsible">
+                    <summary>Hidden Paths ({{ sandbox.filesystem.hidden_paths | length }})</summary>
+                    <div class="collapsible-content">
+                        <div class="cmd-list">
+                            {% for path in sandbox.filesystem.hidden_paths %}
+                            <span class="path-tag hidden">{{ path }}</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </details>
+                {% endif %}
+
+                {% if sandbox.filesystem.read_only_paths %}
+                <details class="collapsible">
+                    <summary>Read-Only Paths ({{ sandbox.filesystem.read_only_paths | length }})</summary>
+                    <div class="collapsible-content">
+                        <div class="cmd-list">
+                            {% for path in sandbox.filesystem.read_only_paths %}
+                            <span class="path-tag readonly">{{ path }}</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </details>
+                {% endif %}
+
+                {% if sandbox.filesystem.writable_paths %}
+                <details class="collapsible">
+                    <summary>Additional Writable Paths ({{ sandbox.filesystem.writable_paths | length }})</summary>
+                    <div class="collapsible-content">
+                        <div class="cmd-list">
+                            {% for path in sandbox.filesystem.writable_paths %}
+                            <span class="path-tag">{{ path }}</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </details>
+                {% endif %}
+
+                <!-- Mounted Folders -->
+                <div style="margin-top: var(--sp-4); padding-top: var(--sp-4); border-top: 1px solid var(--border-subtle);">
+                    <div class="detail-label" style="margin-bottom: var(--sp-2);">Mounted Folders</div>
+                    <div class="cmd-list" style="flex-direction: column; align-items: flex-start; gap: var(--sp-1);">
+                        <span class="path-tag" style="display: inline-flex; gap: var(--sp-2); align-items: center;">
+                            <code style="font-family: var(--font-mono); font-size: var(--text-xs);">/workspace</code>
+                            <span style="color: var(--text-muted);">&larr;</span>
+                            <code style="font-family: var(--font-mono); font-size: var(--text-xs); word-break: break-all;">{{ sandbox.filesystem.working_dir }}</code>
+                            <span class="badge badge-running" style="font-size: 0.65rem; padding: 1px 6px;">read-write</span>
+                        </span>
+                        {% if extra_mounts %}
+                        {% for m in extra_mounts %}
+                        <span class="path-tag" style="display: inline-flex; gap: var(--sp-2); align-items: center;">
+                            <code style="font-family: var(--font-mono); font-size: var(--text-xs);">{{ m.target }}</code>
+                            <span style="color: var(--text-muted);">&larr;</span>
+                            <code style="font-family: var(--font-mono); font-size: var(--text-xs); word-break: break-all;">{{ m.source }}</code>
+                            {% if m.mode == 'ro' %}
+                            <span class="badge badge-stopped" style="font-size: 0.65rem; padding: 1px 6px;">read-only</span>
+                            {% else %}
+                            <span class="badge badge-running" style="font-size: 0.65rem; padding: 1px 6px;">read-write</span>
+                            {% endif %}
+                        </span>
+                        {% endfor %}
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Audit Status -->
+        <div class="card">
+            <div class="card-header">
+                <h3><span class="card-header-icon" aria-hidden="true">&#128209;</span> Activity Recording</h3>
+                {% if sandbox.audit_config.enabled %}
+                <span class="badge badge-running">
+                    <span class="badge-dot" aria-hidden="true"></span>
+                    ENABLED
+                </span>
+                {% else %}
+                <span class="badge badge-error">
+                    <span class="badge-dot" aria-hidden="true"></span>
+                    DISABLED
+                </span>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                <p class="text-secondary text-sm mb-4">Every action is recorded so you can review what the AI did.</p>
+                <div class="detail-grid" style="grid-template-columns: 1fr 1fr;">
+                    <div class="detail-item">
+                        <div class="detail-label">Tamper-proof signatures</div>
+                        <div class="detail-value">
+                            {% if sandbox.audit_config.sign_entries %}
+                            <span class="text-success font-semibold">Enabled</span>
+                            {% else %}
+                            <span class="text-warning font-semibold">Disabled</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Log Directory</div>
+                        <div class="detail-value mono text-xs" style="word-break: break-all;">{{ sandbox.audit_config.log_dir }}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Capture Output</div>
+                        <div class="detail-value">
+                            {% if sandbox.audit_config.include_command_output %}
+                            <span class="text-success font-semibold">Yes</span>
+                            {% else %}
+                            <span class="text-muted">No</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Capture Diffs</div>
+                        <div class="detail-value">
+                            {% if sandbox.audit_config.include_file_diffs %}
+                            <span class="text-success font-semibold">Yes</span>
+                            {% else %}
+                            <span class="text-muted">No</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Max Log Size</div>
+                        <div class="detail-value">{{ sandbox.audit_config.max_log_size_mb }} MB</div>
+                    </div>
+                    {% if sandbox.audit_config.webhooks_count > 0 %}
+                    <div class="detail-item">
+                        <div class="detail-label">Webhooks</div>
+                        <div class="detail-value">{{ sandbox.audit_config.webhooks_count }} configured</div>
+                    </div>
+                    {% endif %}
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Audit Feed -->
+<div class="card">
+    <div class="card-header">
+        <h3><span class="card-header-icon" aria-hidden="true">&#9998;</span> Recent Activity</h3>
+        <p style="color: var(--text-tertiary); font-size: var(--text-xs); margin-top: 2px;">Shows sandbox events. For full command history in interactive sessions, check the agent's own log.</p>
+        <a href="{{ url_for('dashboard.audit_log', sandbox_id=sandbox.id) }}" class="btn btn-ghost btn-sm">
+            View All
+        </a>
+    </div>
+    <div id="audit-feed-area"
+         aria-live="polite"
+         hx-get="{{ url_for('dashboard.partial_audit_feed', sandbox_id=sandbox.id) }}"
+         hx-trigger="every 5s"
+         hx-swap="innerHTML">
+        {% include "partials/audit_feed.html" %}
+    </div>
+</div>
+{% endblock %}

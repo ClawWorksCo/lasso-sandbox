@@ -1,0 +1,78 @@
+<div class="detail-grid">
+    <div class="detail-item">
+        <div class="detail-label">Sandbox ID</div>
+        <div class="detail-value mono">{{ sandbox.id }} <button class="copy-btn" onclick="copyToClipboard('{{ sandbox.id }}', this)" title="Copy sandbox ID" aria-label="Copy sandbox ID">Copy</button></div>
+    </div>
+    <div class="detail-item">
+        <div class="detail-label">State</div>
+        <div class="detail-value">
+            <span class="badge badge-{{ sandbox.state }}">
+                <span class="badge-dot" aria-hidden="true"></span>
+                {{ sandbox.state }}
+            </span>
+        </div>
+    </div>
+    <div class="detail-item">
+        <div class="detail-label">Network Isolation</div>
+        <div class="detail-value">
+            <span class="badge badge-net-{{ sandbox.network_mode }}">
+                {% if sandbox.network_mode == 'none' %}&#128274;{% elif sandbox.network_mode == 'restricted' %}&#9888;{% else %}&#127760;{% endif %}
+                {{ sandbox.network_mode | upper }}
+            </span>
+        </div>
+    </div>
+    <div class="detail-item">
+        <div class="detail-label">Command Mode</div>
+        <div class="detail-value">{{ sandbox.command_mode }}</div>
+    </div>
+    <div class="detail-item">
+        <div class="detail-label">Working Directory</div>
+        <div class="detail-value mono">{{ sandbox.working_dir }}</div>
+    </div>
+    <div class="detail-item">
+        <div class="detail-label">Created</div>
+        <div class="detail-value">{{ sandbox.created_at | timeago }}</div>
+    </div>
+    <div class="detail-item">
+        <div class="detail-label">Commands Executed</div>
+        <div class="detail-value">
+            <span style="font-size: var(--text-xl); font-weight: 700; font-variant-numeric: tabular-nums;">{{ sandbox.exec_count }}</span>
+        </div>
+    </div>
+    <div class="detail-item">
+        <div class="detail-label">Commands Blocked</div>
+        <div class="detail-value">
+            <span style="font-size: var(--text-xl); font-weight: 700; font-variant-numeric: tabular-nums; {% if sandbox.blocked_count > 0 %}color: var(--color-error);{% endif %}">
+                {{ sandbox.blocked_count }}
+            </span>
+        </div>
+    </div>
+</div>
+
+<details class="collapsible" style="margin-top: var(--sp-4);">
+    <summary>Show technical details</summary>
+    <div class="collapsible-content">
+        <div class="detail-grid">
+            <div class="detail-item">
+                <div class="detail-label">Backend</div>
+                <div class="detail-value">{{ sandbox.backend }}</div>
+            </div>
+            <div class="detail-item">
+                <div class="detail-label">Config Hash</div>
+                <div class="detail-value mono">{{ sandbox.config_hash }} <button class="copy-btn" onclick="copyToClipboard('{{ sandbox.config_hash }}', this)" title="Copy config hash" aria-label="Copy config hash">Copy</button></div>
+            </div>
+            {% if sandbox.audit_log %}
+            <div class="detail-item">
+                <div class="detail-label">Audit Log</div>
+                <div class="detail-value mono text-xs" style="word-break: break-all;">{{ sandbox.audit_log }}</div>
+            </div>
+            {% endif %}
+            {% if sandbox.container_id %}
+            <div class="detail-item">
+                <div class="detail-label">Container ID</div>
+                <div class="detail-value mono">{{ sandbox.container_id }}</div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</details>

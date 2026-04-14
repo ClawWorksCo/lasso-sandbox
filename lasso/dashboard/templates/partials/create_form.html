@@ -1,0 +1,77 @@
+<div class="onboarding">
+    <h1>Create your first sandbox</h1>
+    <p class="subtitle">Pick an AI agent to get started. Your sandbox runs in a secure, isolated environment.</p>
+
+    <div class="agent-grid" id="agent-grid">
+        <div class="agent-card" tabindex="0" role="button" aria-label="Select Claude Code" onclick="selectAgent('claude-code', 'C', 'Claude Code')" onkeydown="if(event.key==='Enter')this.click()">
+            <div class="agent-icon">C</div>
+            <div>
+                <h3>Claude Code</h3>
+                <p>AI pair programming by Anthropic</p>
+            </div>
+        </div>
+        <div class="agent-card" tabindex="0" role="button" aria-label="Select OpenCode" onclick="selectAgent('opencode', 'O', 'OpenCode')" onkeydown="if(event.key==='Enter')this.click()">
+            <div class="agent-icon">O</div>
+            <div>
+                <h3>OpenCode</h3>
+                <p>Open source AI coding tool</p>
+            </div>
+        </div>
+    </div>
+
+    <button class="btn-text btn-text-sandbox" onclick="selectAgent('', '', '')">Just a sandbox (no AI agent)</button>
+</div>
+
+<form method="post" action="{{ url_for('dashboard.sandbox_create') }}" id="create-config" style="display:none;" onsubmit="serializeMounts(this)">
+    {{ csrf_token() }}
+    <input type="hidden" name="agent" id="agent-input" value="">
+    <input type="hidden" name="mounts" id="mounts-input" value="">
+
+    <div class="config-section">
+        <h3>Security Policy</h3>
+        <div class="policy-cards">
+            <label class="policy-card selected" onclick="selectPolicy(this)">
+                <input type="radio" name="profile" value="standard" checked>
+                <strong>Standard</strong>
+                <p>Dangerous commands blocked, everything else allowed. Internet for packages + AI APIs.</p>
+            </label>
+            <label class="policy-card" onclick="selectPolicy(this)">
+                <input type="radio" name="profile" value="open">
+                <strong>Open</strong>
+                <p>Same safety rules, but with full internet access. For research and API calls.</p>
+            </label>
+            <label class="policy-card" onclick="selectPolicy(this)">
+                <input type="radio" name="profile" value="offline">
+                <strong>Offline</strong>
+                <p>Same safety rules, but no internet at all. For sensitive data work.</p>
+            </label>
+        </div>
+        <p class="hint" style="margin-top: var(--sp-2); font-size: 0.8rem;">Need stricter controls? See <a href="/profiles" style="color: var(--brand-primary);">Sandbox Rules</a> for Strict and Evaluation profiles.</p>
+    </div>
+
+    <div class="config-section">
+        <h3>Project Directory</h3>
+        <div style="display:flex;gap:var(--sp-2);align-items:flex-start;">
+            <input type="text" name="working_dir" id="working-dir-input" value="{{ default_dir }}" class="form-input-lg" style="flex:1;">
+            <button type="button" class="btn btn-sm btn-secondary" onclick="openBrowser('working-dir-input')">Browse</button>
+        </div>
+        <p class="hint">The path to your project <strong>on your computer</strong>. This folder will be shared with the sandbox so the AI agent can read and edit your code. All other folders on your computer are hidden from the sandbox.</p>
+    </div>
+
+    <button type="button" class="advanced-toggle" onclick="toggleAdvanced(this)">Advanced options</button>
+    <div class="advanced-content">
+        <div class="config-section">
+            <h3>Additional Folders <span class="optional">(optional)</span></h3>
+            <p class="hint" style="margin-top: 0; margin-bottom: var(--sp-3);">Mount extra directories from your computer into the sandbox. Useful for shared team context, reference data, or other project files.</p>
+            <div class="extra-mounts-container">
+            </div>
+            <button type="button" class="btn-outline" onclick="addMountRow(this.previousElementSibling)">+ Add Folder</button>
+        </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary btn-lg">
+        <span class="btn-default-text">Create Sandbox</span>
+        <span class="btn-loading-text"><span class="spinner"></span> Creating...</span>
+    </button>
+    <p class="hint" style="margin-top: 0.75rem; font-size: 0.8rem;">First-time creation may take 1-2 minutes to build the image.</p>
+</form>

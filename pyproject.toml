@@ -1,0 +1,115 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lasso-sandbox"
+version = "1.6.3"
+description = "Run AI coding agents (Claude Code, OpenCode) safely inside sandboxed Docker containers with audit logging"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+authors = [
+    {name = "LASSO Team"},
+]
+keywords = ["sandbox", "security", "ai-agents", "docker", "container", "audit", "compliance"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+    "Topic :: Software Development :: Testing",
+    "Operating System :: OS Independent",
+]
+
+dependencies = [
+    "typer>=0.9",
+    "rich>=13.0",
+    "pydantic>=2.0",
+    "tomli>=2.0",
+    "tomli_w>=1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/ClawWorksCo/lasso-sandbox"
+Source = "https://github.com/ClawWorksCo/lasso-sandbox"
+Documentation = "https://github.com/ClawWorksCo/lasso-sandbox/tree/main/docs"
+Issues = "https://github.com/ClawWorksCo/lasso-sandbox/issues"
+Changelog = "https://github.com/ClawWorksCo/lasso-sandbox/blob/main/CHANGELOG.md"
+
+[project.optional-dependencies]
+dashboard = ["flask>=3.0"]
+containers = ["docker>=7.0"]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov",
+    "hypothesis>=6.0",
+]
+secure = ["keyring>=25.0"]
+all = [
+    "flask>=3.0",
+    "docker>=7.0",
+    "keyring>=25.0",
+]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.package-data]
+"lasso" = ["py.typed"]
+"lasso.dashboard" = ["templates/**/*.html", "static/*.js", "static/*.css"]
+"lasso.agents" = ["plugins/*.js"]
+"lasso.profiles" = ["*.toml"]
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: tests that require a running container runtime (Docker/Podman)",
+]
+
+[project.scripts]
+lasso = "lasso.cli.main:main"
+
+[tool.setuptools.packages.find]
+include = ["lasso*"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+ignore = [
+    "E501",   # line length handled by formatter
+    "E402",   # module-level imports — we have conditional imports
+    "B904",   # raise-without-from — too noisy for existing codebase
+    "B008",   # function-call-in-default-argument — Typer uses this pattern
+    "SIM105", # suppressible-exception — contextlib.suppress is less readable
+    "SIM108", # if-else-block — ternary not always clearer
+    "SIM103", # needless-bool — explicit returns are clearer
+    "SIM102", # collapsible-if — nested ifs can be more readable
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["lasso"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+check_untyped_defs = true
+ignore_missing_imports = true
+
+[tool.coverage.run]
+source = ["lasso"]
+omit = ["tests/*", "lasso/dashboard/templates/*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+fail_under = 65

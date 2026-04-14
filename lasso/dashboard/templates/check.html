@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+{% block title %}LASSO — System Check{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item">
+    <span class="breadcrumb-current">System Check</span>
+</li>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">System Health Check</h1>
+    <p class="page-subtitle">This page verifies that your system has everything LASSO needs. You normally don't need to check this &mdash; it's here for troubleshooting.</p>
+</div>
+
+<!-- Platform Info -->
+<div class="card mb-6">
+    <div class="card-header">
+        <h3><span class="card-header-icon" aria-hidden="true">&#9432;</span> Platform Information</h3>
+    </div>
+    <div class="card-body">
+        <div class="detail-grid">
+            <div class="detail-item">
+                <div class="detail-label">Operating System</div>
+                <div class="detail-value mono">{{ capabilities.platform }}</div>
+            </div>
+            <div class="detail-item">
+                <div class="detail-label">Python Version</div>
+                <div class="detail-value mono">{{ capabilities.python }}</div>
+            </div>
+            <div class="detail-item">
+                <div class="detail-label">LASSO Version</div>
+                <div class="detail-value mono">{{ version }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Container Runtimes -->
+<h2 class="mb-4">Container Runtimes</h2>
+<div class="cap-grid mb-6">
+    <div class="cap-card">
+        <div class="cap-card-header">
+            <span class="cap-card-title">Docker</span>
+            {% if capabilities.docker %}
+            <span class="cap-status available">
+                <span aria-hidden="true">&#10003;</span> Available
+            </span>
+            {% else %}
+            <span class="cap-status unavailable">
+                <span aria-hidden="true">&#10005;</span> Not Found
+            </span>
+            {% endif %}
+        </div>
+        <p class="cap-card-desc">Primary container backend for full OS-level isolation</p>
+    </div>
+
+    <div class="cap-card">
+        <div class="cap-card-header">
+            <span class="cap-card-title">Podman</span>
+            {% if capabilities.podman %}
+            <span class="cap-status available">
+                <span aria-hidden="true">&#10003;</span> Available
+            </span>
+            {% else %}
+            <span class="cap-status unavailable">
+                <span aria-hidden="true">&#10005;</span> Not Found
+            </span>
+            {% endif %}
+        </div>
+        <p class="cap-card-desc">Rootless alternative to Docker, DORA-compliant</p>
+    </div>
+</div>
+
+<!-- Kernel Capabilities -->
+<h2 class="mb-4">Linux Kernel Capabilities</h2>
+<div class="cap-grid mb-6">
+    <div class="cap-card">
+        <div class="cap-card-header">
+            <span class="cap-card-title">User Namespaces</span>
+            {% if capabilities.user_ns %}
+            <span class="cap-status available"><span aria-hidden="true">&#10003;</span> Available</span>
+            {% else %}
+            <span class="cap-status unavailable"><span aria-hidden="true">&#10005;</span> Unavailable</span>
+            {% endif %}
+        </div>
+        <p class="cap-card-desc">Required for unprivileged sandbox creation</p>
+    </div>
+
+    <div class="cap-card">
+        <div class="cap-card-header">
+            <span class="cap-card-title">Mount Namespaces</span>
+            {% if capabilities.mount_ns %}
+            <span class="cap-status available"><span aria-hidden="true">&#10003;</span> Available</span>
+            {% else %}
+            <span class="cap-status unavailable"><span aria-hidden="true">&#10005;</span> Unavailable</span>
+            {% endif %}
+        </div>
+        <p class="cap-card-desc">Filesystem isolation with read-only mounts and hidden paths</p>
+    </div>
+
+    <div class="cap-card">
+        <div class="cap-card-header">
+            <span class="cap-card-title">PID Namespaces</span>
+            {% if capabilities.pid_ns %}
+            <span class="cap-status available"><span aria-hidden="true">&#10003;</span> Available</span>
+            {% else %}
+            <span class="cap-status unavailable"><span aria-hidden="true">&#10005;</span> Unavailable</span>
+            {% endif %}
+        </div>
+        <p class="cap-card-desc">Process isolation prevents agents from seeing host processes</p>
+    </div>
+
+    <div class="cap-card">
+        <div class="cap-card-header">
+            <span class="cap-card-title">Network Namespaces</span>
+            {% if capabilities.net_ns %}
+            <span class="cap-status available"><span aria-hidden="true">&#10003;</span> Available</span>
+            {% else %}
+            <span class="cap-status unavailable"><span aria-hidden="true">&#10005;</span> Unavailable</span>
+            {% endif %}
+        </div>
+        <p class="cap-card-desc">Network isolation with iptables-based controls</p>
+    </div>
+
+    <div class="cap-card">
+        <div class="cap-card-header">
+            <span class="cap-card-title">Cgroups v2</span>
+            {% if capabilities.cgroups_v2 %}
+            <span class="cap-status available"><span aria-hidden="true">&#10003;</span> Available</span>
+            {% else %}
+            <span class="cap-status unavailable"><span aria-hidden="true">&#10005;</span> Unavailable</span>
+            {% endif %}
+        </div>
+        <p class="cap-card-desc">Resource limits for memory, CPU, and process counts</p>
+    </div>
+</div>
+
+<!-- Assessment -->
+{% set all_ns = capabilities.user_ns and capabilities.mount_ns and capabilities.pid_ns and capabilities.net_ns and capabilities.cgroups_v2 %}
+{% set has_runtime = capabilities.docker or capabilities.podman %}
+
+{% if has_runtime and all_ns %}
+<div class="alert-row alert-success">
+    <span class="alert-icon" aria-hidden="true">&#10003;</span>
+    <div>
+        <strong>Everything looks good</strong>
+        <p style="margin-top: var(--sp-1); opacity: 0.9;">All system capabilities detected. LASSO can provide full sandbox isolation. No action needed.</p>
+    </div>
+</div>
+{% elif has_runtime %}
+<div class="alert-row alert-warning">
+    <span class="alert-icon" aria-hidden="true">&#9888;</span>
+    <div>
+        <strong>Container Backend Available</strong>
+        <p style="margin-top: var(--sp-1); opacity: 0.9;">Some kernel capabilities missing for native isolation fallback. Container mode will provide full isolation.</p>
+    </div>
+</div>
+{% elif all_ns %}
+<div class="alert-row alert-warning">
+    <span class="alert-icon" aria-hidden="true">&#9888;</span>
+    <div>
+        <strong>Kernel Capabilities Available</strong>
+        <p style="margin-top: var(--sp-1); opacity: 0.9;">No container runtime detected. Install Docker or Podman for full container-based sandbox isolation.</p>
+    </div>
+</div>
+{% else %}
+<div class="alert-row alert-error">
+    <span class="alert-icon" aria-hidden="true">&#10005;</span>
+    <div>
+        <strong>Limited Isolation</strong>
+        <p style="margin-top: var(--sp-1); opacity: 0.9;">LASSO will fall back to software-level enforcement (command filtering + environment sanitization). For production use, install Docker or Podman and ensure kernel namespace support.</p>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
